@@ -1,0 +1,1 @@
+from ._pipeline import scAtlasVAEPipeline

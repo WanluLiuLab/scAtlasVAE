@@ -83,7 +83,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     :param use_batch_norm: bool. If True, use batch normalization. Default: True
     :param use_layer_norm: bool. If True, use layer normalization. Default: False
     :param batch_hidden_dim: int. Number of hidden units in the batch embedding layer. Default: 8
-    :param batch_embedding: Literal["embedding", "onehot"]. Batch embedding method. Default: "onehot"
+    :param batch_embedding: Literal["embedding", "onehot"]. Batch embedding method. Default: "batch_embedding"
     :param constrain_latent_method: Literal['mse', 'normal']. Method to constrain the latent embedding. Default: 'mse'
     :param constrain_latent_embedding: bool. If True, constrain the latent embedding. Default: False
     :param constrain_latent_key: str. Key to the data to constrain the latent embedding. Default: 'X_gex'
@@ -128,7 +128,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
        use_batch_norm: bool = True,
        use_layer_norm: bool = False,
        batch_hidden_dim: int = 8,
-       batch_embedding: Literal["embedding", "onehot"] = "onehot",
+       batch_embedding: Literal["embedding", "onehot"] = "embedding",
        reconstruction_method: Literal['mse', 'zg', 'zinb'] = 'zinb',
        constrain_n_label: bool = True,
        constrain_n_batch: bool = True,

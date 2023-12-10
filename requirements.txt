@@ -3,7 +3,7 @@ sphinx_rtd_theme
 ipykernel
 nbsphinx
 anndata==0.8.0
-scanpy==1.8.1
+scanpy>=1.8.1
 einops==0.4.1 
 biopython==1.79
 seaborn==0.12.2

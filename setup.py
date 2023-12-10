@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="scAtlasVAE",
-    version="0.0.3",
+    version="0.0.1",
     author="Ziwei Xue",
     author_email="xueziweisz@gmail.com",
     description="scAtlasVAE: a deep learning framework for atlas-scale scRNA-seq integration and analysis",

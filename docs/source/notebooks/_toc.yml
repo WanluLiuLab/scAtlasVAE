@@ -1,0 +1,10 @@
+# Table of contents
+# Learn more at https://jupyterbook.org/customize/toc.html
+
+format: jb-book
+root: intro
+chapters:
+- file: huARdb_TCR_paper_notebook.ipynb
+- file: huARdb_TCR_DeepInsight_notebook.ipynb
+- file: huARdb_TCR_DeepInsight_notebook_v2.ipynb
+- file: huARdb_GEX_paper_notebook.ipynb

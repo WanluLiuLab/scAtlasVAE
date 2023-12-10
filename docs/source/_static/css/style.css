@@ -1,0 +1,112 @@
+h1, h2, h3, h4, h5, h6 {
+    margin-top: 16px;
+}
+
+.output_area img {
+    max-width: 500px !important;
+}
+
+.rst-content code.literal {
+    color: #218383 !important;
+    font-size: 10pt;
+}
+
+。toctree-l3 .docutils .literal {
+    font-size: 14pt;
+}
+
+.wy-menu-vertical li.toctree-l1.current>a {
+    border-bottom: none;
+    border-top: none;
+}
+
+.wy-menu-vertical li.current a {
+    color: grey;
+    border-right: none;
+    padding: 0.4045em 2.427em;
+}
+
+.rst-content code, .rst-content tt, code {
+    font-size: inherit;
+}
+
+.wy-menu-vertical li.toctree-l3.current>a, .wy-menu-vertical li.toctree-l3.current li.toctree-l4>a {
+    background: #FFFFFF;
+}
+
+.wy-nav-content a {
+    color: #218383 !important;
+}
+
+.wy-nav-content a:hover {
+    color: #218383 !important;
+}
+
+.wy-nav-side {
+    background: #FEFEFE !important;
+}
+
+.wy-menu-vertical li.toctree-l2.current>a, .wy-menu-vertical li.toctree-l2.current li.toctree-l3>a {
+    background: #FEFEFE;
+}
+
+.toctree-l2 {
+    background: #FEFEFE !important;
+}
+
+
+
+.wy-nav-content {
+    max-width: 60vw !important;
+}
+
+.wy-side-nav-search .wy-dropdown>a, .wy-side-nav-search>a {
+    color: #000000;
+    font-size: 150%;
+}
+
+.wy-side-nav-search {
+    background: rgb(255,243,226);
+    background: linear-gradient(90deg, rgba(255,243,226,1) 0%, rgba(174,241,255,1) 100%);
+}
+
+.rst-content .note .admonition-title {
+    background: #146565 !important;
+}
+
+.rst-content .note {
+    background: #E8FAE7 !important
+}
+
+.input_area .highlight {
+    background-color: #F9FAFB !important;
+    border-color: none !important;
+}
+
+.highlight {
+    background-color: #F9FAFB;
+}
+
+.highlight pre {
+    font-size: 10pt !important;
+}
+
+.rst-content div[class^=highlight] div[class^=highlight],
+.rst-content pre.literal-block div[class^=highlight] {
+    border: solid !important;
+    border-width: 0px !important;
+}
+
+.wy-menu-vertical a {
+    color: #121212
+}
+
+.wy-menu-vertical a:hover {
+    background-color: #CBF1F5 !important;
+}
+
+.wy-menu-vertical li.current a {
+    color: black;
+    border-right: none;
+    padding: 0.4045em 2.427em;
+}

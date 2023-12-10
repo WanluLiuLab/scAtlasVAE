@@ -4,8 +4,9 @@ import torch
 import gc
 import pandas as pd 
 import os 
-from ..model import scAtlasVAEModel
+from ..model import scAtlasVAE
 from ..preprocessing._preprocess import annotate_t_cell_cd4_cd8
+from ..utils._logger import mw, mt
 
 class scAtlasVAEPipeline:
     def __init__(
@@ -14,23 +15,29 @@ class scAtlasVAEPipeline:
         cd8_model_checkpoint_path: str,
         cd4_model_checkpoint_path: str,
     ):
+        """
+        Pipeline for scAtlasVAE
+        :param cd4cd8_model_checkpoint_path: str. Path to the checkpoint file of trained VAE model for CD4/CD8 datasets
+        :param cd8_model_checkpoint_path: str. Path to the checkpoint file of trained VAE model for CD8 datasets
+        :param cd4_model_checkpoint_path: str. Path to the checkpoint file of trained VAE model for CD4 datasets
+        """
         if not os.path.exists(cd4cd8_model_checkpoint_path):
             raise ValueError(f"cd4cd8_model_checkpoint_path {cd4cd8_model_checkpoint_path} does not exist.")
         self.cd4cd8_model_checkpoint_path = cd4cd8_model_checkpoint_path
         if not os.path.exists(cd8_model_checkpoint_path):
-            raise ValueError(f"cd8_model_checkpoint_path {cd8_model_checkpoint_path} does not exist.")
+            mw(f"cd8_model_checkpoint_path {cd8_model_checkpoint_path} does not exist.")
         self.cd8_model_checkpoint_path = cd8_model_checkpoint_path
         if not os.path.exists(cd4_model_checkpoint_path):
-            raise ValueError(f"cd4_model_checkpoint_path {cd4_model_checkpoint_path} does not exist.")
+            mw(f"cd4_model_checkpoint_path {cd4_model_checkpoint_path} does not exist.")
         self.cd4_model_checkpoint_path = cd4_model_checkpoint_path
 
     def _single_thread_call(self, adata: AnnData, predict_label: bool = False, **kwargs: Any) -> AnnData:
         # CD4/CD8 model
-        adata_cd4cd8 = VAEModel.setup_anndata(adata, self.cd4cd8_model_checkpoint_path)
+        adata_cd4cd8 = scAtlasVAE.setup_anndata(adata, self.cd4cd8_model_checkpoint_path)
         state_dict = torch.load(self.cd4cd8_model_checkpoint_path, map_location="cpu")
         config = state_dict['model_config']
         config.update(kwargs)
-        vae_model_cd4cd8 = VAEModel(
+        vae_model_cd4cd8 = scAtlasVAE(
             adata=adata_cd4cd8,
             pretrained_state_dict=state_dict['model_state_dict'],
             **config,
@@ -44,11 +51,11 @@ class scAtlasVAEPipeline:
         adata_cd4 = adata_cd4cd8[adata_cd4cd8.obs["cd4_cd8_annotation"] == "CD4"]
         
         # CD8 only model
-        adata_cd8 = VAEModel.setup_anndata(adata_cd8, self.cd8_model_checkpoint_path)
+        adata_cd8 = scAtlasVAE.setup_anndata(adata_cd8, self.cd8_model_checkpoint_path)
         state_dict = torch.load(self.cd8_model_checkpoint_path, map_location="cpu")
         config = state_dict['model_config']
         config.update(kwargs)
-        vae_model_cd8 = VAEModel(
+        vae_model_cd8 = scAtlasVAE(
             adata=adata_cd8,
             pretrained_state_dict=state_dict['model_state_dict'],
             **config,
@@ -62,11 +69,11 @@ class scAtlasVAEPipeline:
         adata_cd8.obsm["X_gex"] = Z
 
         # CD4 only model
-        adata_cd4 = VAEModel.setup_anndata(adata_cd4, self.cd4_model_checkpoint_path)
+        adata_cd4 = scAtlasVAE.setup_anndata(adata_cd4, self.cd4_model_checkpoint_path)
         state_dict = torch.load(self.cd4_model_checkpoint_path, map_location="cpu")
         config = state_dict['model_config']
         config.update(kwargs)
-        vae_model_cd4 = VAEModel(
+        vae_model_cd4 = scAtlasVAE(
             adata=adata_cd4,
             pretrained_state_dict=state_dict['model_state_dict'],
             **config,
@@ -85,11 +92,11 @@ class scAtlasVAEPipeline:
         # CD4/CD8 model
         _adata_cd4cd8 = []
         for i in range(0, adata.shape[0], n_per_block):
-            adata_cd4cd8 = VAEModel.setup_anndata(adata[i:i+n_per_block], self.cd4cd8_model_checkpoint_path)
+            adata_cd4cd8 = scAtlasVAE.setup_anndata(adata[i:i+n_per_block], self.cd4cd8_model_checkpoint_path)
             state_dict = torch.load(self.cd4cd8_model_checkpoint_path, map_location="cpu")
             config = state_dict['model_config']
             config.update(kwargs)
-            vae_model_cd4cd8 = VAEModel(
+            vae_model_cd4cd8 = scAtlasVAE(
                 adata=adata_cd4cd8,
                 pretrained_state_dict=state_dict['model_state_dict'],
                 **config,
@@ -114,12 +121,12 @@ class scAtlasVAEPipeline:
         # CD8 only model
         _adata_cd8 = []
         for i in range(0, adata_cd8_merged.shape[0], n_per_block):
-            adata_cd8 = VAEModel.setup_anndata(adata_cd8_merged[i:i+n_per_block], self.cd8_model_checkpoint_path)
+            adata_cd8 = scAtlasVAE.setup_anndata(adata_cd8_merged[i:i+n_per_block], self.cd8_model_checkpoint_path)
             
             state_dict = torch.load(self.cd8_model_checkpoint_path, map_location="cpu")
             config = state_dict['model_config']
             config.update(kwargs)
-            vae_model_cd8 = VAEModel(
+            vae_model_cd8 = scAtlasVAE(
                 adata=adata_cd8,
                 pretrained_state_dict=state_dict['model_state_dict'],
                 **config,
@@ -143,11 +150,11 @@ class scAtlasVAEPipeline:
         # CD4 only model
         _adata_cd4 = []
         for i in range(0, adata_cd4_merged.shape[0], n_per_block):
-            adata_cd4 = VAEModel.setup_anndata(adata_cd4_merged[i:i+n_per_block], self.cd4_model_checkpoint_path)
+            adata_cd4 = scAtlasVAE.setup_anndata(adata_cd4_merged[i:i+n_per_block], self.cd4_model_checkpoint_path)
             state_dict = torch.load(self.cd4_model_checkpoint_path, map_location="cpu")
             config = state_dict['model_config']
             config.update(kwargs)
-            vae_model_cd4 = VAEModel(
+            vae_model_cd4 = scAtlasVAE(
                 adata=adata_cd4,
                 pretrained_state_dict=state_dict['model_state_dict'],
                 **config,

@@ -101,7 +101,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
     :example:
         >>> import scatlasvae
-        >>> model = scatlasvae.model.scAtlasVAEModel(
+        >>> model = scatlasvae.model.scAtlasVAE(
         >>>    adata,
         >>>    batch_key = 'batch',
         >>>    label_key = 'cell_type',
@@ -152,11 +152,9 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             
         super(scAtlasVAE, self).__init__()
         if adata.X.dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
-            mw("adata.X is not of type np.int32. " + \
-               "Converting to np.int32." + \
-                " "*40 + "\tPlease save the anndata.X " + \
-               "in np.int32 to prevent this warning.")
-            adata.X = adata.X.astype(np.int32)
+            mw("adata.X is not of type np.int32. \n" + \
+                " "*40 + "\tCheck whether you are using raw count matrix.")
+            # adata.X = adata.X.astype(np.int32)
 
         self.adata = adata
         self.in_dim = adata.shape[1] if adata else -1
@@ -172,9 +170,19 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             raise ValueError("Please provide a label key if n_batch is greater than 0")
 
         self.label_key = label_key
+        self.label_category = None 
+        self.label_category_summary = None 
         self.batch_key = batch_key
+        self.batch_category = None 
+        self.batch_category_summary = None 
         self.additional_batch_keys = additional_batch_keys
+        self.additional_batch_category = None 
+        self.additional_batch_category_summary = NOne 
         self.additional_label_keys = additional_label_keys
+        self.additional_label_category = None 
+        self.additional_label_category_summary = None 
+
+
         self.n_batch = n_batch
         self.n_label = n_label
         self.unlabel_key = unlabel_key
@@ -1061,6 +1069,14 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             "epoch_mmd_loss": 0,
             "epoch_total_loss": 0
         }
+
+        epoch_total_loss_list = []
+        epoch_reconstruction_loss_list = []
+        epoch_kldiv_loss_list = []
+        epoch_prediction_loss_list = []
+        epoch_mmd_loss_list = []
+
+
         for epoch in range(1, max_epoch+1):
             self._trained = True
             pbar.desc = "Epoch {}".format(epoch)
@@ -1140,6 +1156,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 'pred': '{:.2e}'.format(loss_record["epoch_prediction_loss"]),
                 'mmd': '{:.2e}'.format(loss_record["epoch_mmd_loss"]),
             })
+            epoch_total_loss_list.append(epoch_total_loss)
+            epoch_reconstruction_loss_list.append(epoch_reconstruction_loss)
+            epoch_kldiv_loss_list.append(epoch_kldiv_loss)
+            epoch_prediction_loss_list.append(epoch_prediction_loss)
+            epoch_mmd_loss_list.append(epoch_mmd_loss)
             pbar.update(1)
             if n_epochs_kl_warmup:
                 kl_weight = min( kl_weight + kl_warmup_gradient, kl_weight_max)
@@ -1149,6 +1170,14 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             self.load_state_dict(best_state_dict)
         pbar.close()
         self.trained_state_dict = deepcopy(self.state_dict())
+        return dict(
+            epoch_total_loss_list=epoch_total_loss_list,   
+            epoch_reconstruction_loss_list=epoch_reconstruction_loss_list,
+            epoch_kldiv_loss_list=epoch_kldiv_loss_list,
+            epoch_prediction_loss_list=epoch_prediction_loss_list,
+            epoch_mmd_loss_list=epoch_mmd_loss_list
+        )
+    
 
     @torch.no_grad()
     def predict_labels(
@@ -1157,6 +1186,13 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         return_pandas: bool = False,
         show_progress: bool = True
     ) -> List:
+        """
+        Predict labels from trained model. 
+
+        :param n_per_batch: int. Number of cells for each mini-batch during inference.
+        :param return_pandas: bool. return a pandas DataFrame if True else return a pytorch tensor.
+        :param show_progress: bool. Show progress bar of total progress.
+        """
         self.eval()
         X = self.as_dataloader(subset_indices = list(range(len(self._dataset))), shuffle=False, n_per_batch=n_per_batch)
         predictions = []

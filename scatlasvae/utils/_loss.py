@@ -9,7 +9,7 @@ from torch.autograd import Variable
 
 from ._logger import *
 from ._distributions import *
-from .._compat import *
+from ._compat import *
 from ..externals._trvae_mmd_loss import mmd_loss_calc
 
 # Reference: https://github.com/tim-learn/ATDOC/blob/main/loss.py

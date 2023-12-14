@@ -31,7 +31,7 @@ The following use `sample_name` as the batch key. The batch index is converted t
     batch_embedding='onehot',
     device='cuda:0', 
   )
-  vae_model.fit()
+  loss_record = vae_model.fit()
   adata.obsm['X_gex'] = vae_model.get_latent_embedding()
 
 
@@ -48,7 +48,7 @@ The following use `sample_name` as the batch key. The batch index is converted t
     device='cuda:0', 
     batch_hidden_dim=64,
   )
-  vae_model.fit()
+  loss_record = vae_model.fit()
   adata.obsm['X_gex'] = vae_model.get_latent_embedding()
 
 Training the VAE model using batch key and categorical covariates (e.g. `study_name`)
@@ -66,7 +66,7 @@ Training the VAE model using batch key and categorical covariates (e.g. `study_n
     device='cuda:0', 
     batch_hidden_dim=64
   )
-  vae_model.fit()
+  loss_record = vae_model.fit()
   adata.obsm['X_gex'] = vae_model.get_latent_embedding()
 
 Training the VAE model using batch key and label key (e.g. `cell_type`)
@@ -84,7 +84,7 @@ Training the VAE model using batch key and label key (e.g. `cell_type`)
     device='cuda:0', 
     batch_hidden_dim=64,
   )
-  vae_model.fit()
+  loss_record = vae_model.fit()
   adata.obsm['X_gex'] = vae_model.get_latent_embedding()
 
 
@@ -105,7 +105,7 @@ Training the VAE model using multiple batch keys and mutiple label keys
     device='cuda:0', 
     batch_hidden_dim=64,
   )
-  vae_model.fit()
+  loss_record = vae_model.fit()
   adata.obsm['X_gex'] = vae_model.get_latent_embedding()
 
 Saving the VAE model

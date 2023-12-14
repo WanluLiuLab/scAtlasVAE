@@ -1,9 +1,9 @@
-.. T-DeepInsight documentation master file, created by
+.. scAtlasVAE documentation master file, created by
    sphinx-quickstart on Tue Apr 25 13:31:22 2023.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to T-DeepInsight's documentation!
+Welcome to scAtlasVAE's documentation!
 ============================================
 
 .. toctree::
@@ -12,6 +12,7 @@ Welcome to T-DeepInsight's documentation!
 
 Contents
 --------
+
 .. toctree::
 
    intro

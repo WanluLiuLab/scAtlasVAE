@@ -54,7 +54,8 @@ You can simply use our preprocessing pipeline to preprocess the data.
 
 .. note::
   The preprocessing pipeline is only tested on Linux and Mac OS. 
-  It is not tested on Windows. Please report 
+  It is not tested on Windows.  Please report any issue to the 
+  scAtlasVAE repository (https://github.com/WanluLiuLab/scAtlasVAE/issues).
 
 
 .. code-block:: python
@@ -73,6 +74,29 @@ You can simply use our preprocessing pipeline to preprocess the data.
         ref_data_path = HSAP_REF_DATA["Tonly"]
     )
     
+
+HSAP_REF_DATA['Tonly'] contains all cell type annotations for T cells:
+* Central memory CD8 T cells
+* Effector memory CD8 T cells
+* Follicular helper T cells
+* MAIT cells
+* Naive CD4 T cells
+* Naive CD8 T cells
+* T regulatory cells
+* Terminal effector CD4 T cells
+* Terminal effector CD8 T cells
+* Terminal effector CD8 T cellsMAIT cells
+* Th1 cells
+* Th1/Th17 cells
+* Th17 cells
+* Th2 cells
+
+HSAP_REF_DATA['TBonly'] contains additional cell type annotations for B cells:
+* Plasmablasts
+* Naive B cells 
+* Non-switched memory B cells
+
+
 
 .. note::
   You should have R installed and the Rscript executable should be in the PATH. 

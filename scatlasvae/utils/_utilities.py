@@ -13,12 +13,14 @@ import numba
 from umap.distances import euclidean
 import scipy 
 import math 
-
+import tabulate
 import warnings
 import tqdm
 from ._logger import Colors
 from ._parallelizer import Parallelizer
 from ._decorators import deprecated
+
+is_nvidia_smi_warned = False
 
 def convert_size(size_bytes):
    if size_bytes == 0:
@@ -30,11 +32,14 @@ def convert_size(size_bytes):
    return "%s %s" % (s, size_name[i])
 
 def print_gpu_mem(i):
+    global is_nvidia_smi_warned
     try:
         import nvidia_smi
     except:
-        print("install nvidia_smi for automatically select cuda device by memory usage.")
-        return np.nan, np.nan, np.nan
+        if not is_nvidia_smi_warned:
+            print("install nvidia_smi with pip install nvidia-smi for automatically select cuda device by memory usage.")
+            is_nvidia_smi_warned = True
+        return "0", "0", "0 %"
     nvidia_smi.nvmlInit()
     handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
     info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)

@@ -83,11 +83,11 @@ def transfer_umap(
     reference_umap,
     query_embedding,
     method: Literal['retrain','knn'] = 'knn', 
-    n_epochs: int = 10,
-    use_cuml_umap: bool = False,
     subsample: int = 100000,
     return_subsampled_indices: bool = False,
     return_subsampled_reference_umap: bool = False,
+    n_epochs: int = 10,
+    use_cuml_umap: bool = False,
     return_reducer: bool = False,
     **kwargs
 ):
@@ -100,13 +100,22 @@ def transfer_umap(
     :param method: Method to use. Either 'retrain' or 'knn'. 
         If 'retrain', use a new umap reducer. 
         If 'knn', use reference_umap to find nearest neighbors and average their UMAP coordinates
-    :param n_epochs: Number of epochs to use for retraining. Ignore if method is 'knn'
-    :param use_cuml_umap: Use cumlUMAP instead of UMAP
-    :param subsample: Number of cells to subsample from reference_embedding
-    :param return_subsampled_indices: Return subsampled indices
+    :param subsample: Number of cells to subsample from reference_embedding.
+    :param return_subsampled_indices: Return subsampled indices.
     :param return_subsampled_reference_umap: Return subsampled reference UMAP
-    :param return_reducer: Return reducer. Ignore if method is 'knn'
-    :param kwargs: Additional arguments to pass to UMAP
+    :param n_epochs: Number of epochs to use for retraining. Ignore if method is 'knn'
+    :param return_reducer: Return reducer. Ignore if method is 'knn'.
+    :param kwargs: Additional arguments to pass to UMAP. Ignore if method is 'knn'.
+
+    :example:
+        >>> import scatlasvae
+        >>> import scanpy as sc
+        >>> import numpy as np
+        >>> adata_query.obsm['X_umap'] = scatlasvae.utils.transfer_umap(
+        >>>     adata_reference.obsm['X_gex'],
+        >>>     adata_reference.obsm['X_umap'],
+        >>>     adata_query.obsm['X_gex']
+        >>> )["embedding]
     """
     indices = np.arange(len(reference_embedding))
     if subsample < len(indices):

@@ -23,6 +23,8 @@ dependencies:
       - scikit-learn==0.24.1 
       - einops==0.4.1 
       - biopython==1.79
+      - plotly==5.10.0
+      - tabulate=0.8.9
       - torch==1.13.1+cu117
       - torchvision==0.14.1+cu117
       - torchaudio==0.13.1+cu117

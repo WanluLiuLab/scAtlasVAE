@@ -29,21 +29,20 @@ MODULE_PATH = Path(__file__).parent
 
 plt.ioff()
 
-HSAP_REF_DATA = {
-    "Tonly": MODULE_PATH / "./data/refdata/human/reft_name.Rdata",
-    "TBonly": MODULE_PATH / "./data/refdata/human/reft_name_tb.Rdata"
-}
 """
 Reference human T/B cell annotation data for singleR. Originated from
 Monaco, et al. (2019). RNA-Seq Signatures Normalized by mRNA Abundance Allow Absolute Deconvolution of Human Immune Cell Types. 
 Cell Reports 26, 1627-1640.e7. 10.1016/j.celrep.2019.01.041.
 The reference data is subsetted to only contain T or B cells, removing other immune cell types.
 
-
-
 :attr:`Tonly`: T cell only reference data
 :attr:`TBonly`: T/B cell reference data
 """
+HSAP_REF_DATA = {
+    "Tonly": MODULE_PATH / "./data/refdata/human/reft_name.Rdata",
+    "TBonly": MODULE_PATH / "./data/refdata/human/reft_name_tb.Rdata"
+}
+
 
 
 MMUS_REF_DATA = {
@@ -90,6 +89,19 @@ class VDJPreprocessingV1Human:
         :param cellranger_vdj_output_path_opt: Path to the cellranger vdj output folder for the optional sample.
         :param sample_name: Name of the sample.
         :param study_name: Name of the study.
+
+        :example:
+        >>> # Preprocess the output of Human sample cellranger vdj and cellranger gex.
+        >>> import scatlasvae
+        >>> pp = scatlasvae.pp.VDJPreprocessingV1Human(
+        ...     cellranger_gex_output_path = "./cellranger_gex_output",
+        ...     cellranger_vdj_output_path = "./cellranger_vdj_output",
+        ...     output_path = "./output",
+        ... )
+        >>> pp.process(
+        ...     r_path = "/opt/anaconda3/envs/r403/bin/Rscript",
+        ...     ref_data_path = scatlasvae.pp.HSAP_REF_DATA["Tonly"]
+        ... )
         """
         self.filtered_10x_feature_bc_matrix_path = os.path.join(
             os.path.abspath(cellranger_gex_output_path), "filtered_feature_bc_matrix"
@@ -138,7 +150,7 @@ class VDJPreprocessingV1Human:
         Preprocess the output of cellranger vdj and cellranger gex.
         
         :param r_path: Path to the Rscript executable. 
-        :param ref_data_path: Path to the reference data.
+        :param ref_data_path: Path to the reference data. Available references are defined in `scatlasvae.pp.HSAP_REF_DATA` and `scatlasvae.pp.MMUS_REF_DATA`.
         """
         self._initialize_filtered_adata()
         self._initialize_vdj_data()

@@ -32,7 +32,7 @@ The `X_gex` is the VAE embedding of the GEX data obtained from previous training
     batch_key="sample_name", 
     batch_embedding='embedding', 
     device='cuda:0', 
-    batch_hidden_dim=64,
+    batch_hidden_dim=10,
     constrain_latent_embedding=True,
     constrain_latent_key='X_gex'
   )
@@ -45,7 +45,7 @@ The `X_gex` is the VAE embedding of the GEX data obtained from previous training
     batch_key="sample_name", 
     batch_embedding='embedding', 
     device='cuda:0', 
-    batch_hidden_dim=64,
+    batch_hidden_dim=10,
     pretrained_state_dict=torch.load("retrained_vae_model.pt")['model_state_dict']
   )
   query_adata.obsm['X_gex'] = vae_model.get_latent_embedding()

@@ -74,8 +74,6 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     :param n_additional_batch: Optional[Iterable[int]]. Number of categorical covariate. Default: None
     :param batch_key: str. Batch key in adata.obs. Default: None
     :param label_key: str. Label key in adata.obs. Default: None
-    :param additional_batch_keys: Optional[Iterable[str]]. Categorical covariate keys in adata.obs. Default: None
-    :param additional_label_keys: Optional[Iterable[str]]. Additional label keys in adata.obs. Default: None
     :param dispersion: Literal["gene", "gene-batch", "gene-cell"]. Dispersion method. Default: "gene-cell"
     :param log_variational: bool. If True, log the variational distribution. Default: True
     :param total_variational: bool. If True, normalize the counts with library size. Default: False
@@ -103,10 +101,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         >>> import scatlasvae
         >>> model = scatlasvae.model.scAtlasVAE(
         >>>    adata,
-        >>>    batch_key = 'batch',
-        >>>    label_key = 'cell_type',
-        >>>    additional_batch_keys = ['sample'],
-        >>>    additional_label_keys = ['cell_subtype']
+        >>>    batch_key = ['sample_name','study_name'],
+        >>>    label_key = ['cell_type', 'cell_subtype'],
         >>> )
     """
     def __init__(self, *,
@@ -119,8 +115,6 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
        n_additional_label: Optional[Iterable[int]] = None,
        batch_key = None,
        label_key = None,
-       additional_batch_keys: Optional[Iterable[str]] = None,
-       additional_label_keys: Optional[Iterable[str]] = None,
        dispersion:  Literal["gene", "gene-batch", "gene-cell"] = "gene-cell",
        log_variational: bool = True,
        total_variational: bool = False,
@@ -149,7 +143,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     ) -> None:
         if device is None:
             device = get_default_device()
-            
+        
         super(scAtlasVAE, self).__init__()
         if adata.X.dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
             mw("adata.X is not of type np.int32. \n" + \
@@ -175,10 +169,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         self.batch_key = batch_key
         self.batch_category = None 
         self.batch_category_summary = None 
-        self.additional_batch_keys = additional_batch_keys
+        self.additional_batch_keys = [] if isinstance(batch_key, str) or (isinstance(batch_key, Iterable) and len(batch_key == 1)) else batch_key[1:]
         self.additional_batch_category = None 
-        self.additional_batch_category_summary = NOne 
-        self.additional_label_keys = additional_label_keys
+        self.additional_batch_category_summary = None 
+        self.additional_label_keys = [] if isinstance(label_key, str) or (isinstance(label_key, Iterable) and len(label_key == 1)) else label_key[1:]
         self.additional_label_category = None 
         self.additional_label_category_summary = None 
 
@@ -427,7 +421,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         self.partial_load_state_dict(state_dict["model_state_dict"])
 
     @staticmethod
-    def setup_anndata(adata: sc.AnnData, path_to_state_dict: Optional[Union[str, Path]] = None, unlabel_key: str = 'undefined'):
+    def setup_anndata(
+        adata: sc.AnnData, 
+        path_to_state_dict: Optional[Union[str, Path]] = None, 
+        unlabel_key: str = 'undefined'
+    ):
         """
         Setup the model with adata
 
@@ -760,10 +758,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         # if batch_index is not None and self.inject_batch:
         #    X = torch.hstack([X, batch_index])
         libsize = torch.log(X.sum(1))
-        if self.total_variational:
-            X = self._normalize_data(X, after=1e4, copy=True)
-        if self.log_variational:
-            X = torch.log(1+X)
+        if self.reconstruction_method == 'zinb':
+            if self.total_variational:
+                X = self._normalize_data(X, after=1e4, copy=True)
+            if self.log_variational:
+                X = torch.log(1+X)
         q = self.encoder.encode(torch.hstack([X,libsize.unsqueeze(1)])) if self.encode_libsize else self.encoder.encode(X)
         q_mu = self.z_mean_fc(q)
         q_var = torch.exp(self.z_var_fc(q)) + eps
@@ -807,8 +806,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         h = None
 
         px_rna_scale = self.px_rna_scale_decoder(px)
-        if self.decode_libsize:
+        if self.decode_libsize and not self.reconstruction_method == 'mse':
             px_rna_scale_final = px_rna_scale * lib_size.unsqueeze(1)
+        elif self.reconstruction_method == 'mse':
+            px_rna_scale_final = torch.log(px_rna_scale * 1e4 + 1)
         else:
             px_rna_scale_final = px_rna_scale
 
@@ -870,8 +871,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 reduction=reduction
             )
         elif self.reconstruction_method == 'mse':
+            X_norm = self._normalize_data(X, after=1e4)
+            X_norm = torch.log(X_norm + 1)
             reconstruction_loss = nn.functional.mse_loss(
-                X,
+                X_norm,
                 R['px_rna_scale'],
                 reduction=reduction
             )
@@ -1028,8 +1031,29 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     ):
         """
         Fit the model.
-
-
+        
+        :param max_epoch: int. Maximum number of epoch to train the model. If not provided, the model will be trained for 400 epochs or 20000 / n_record * 400 epochs as default.
+        :param n_per_batch: int. Number of cells per batch.
+        :param kl_weight: float. (Maximum) weight of the KL divergence loss.
+        :param pred_weight: float. weight of the prediction loss.
+        :param mmd_weight: float. weight of the mmd loss. ignored if mmd_key is None
+        :param constrain_weight: float. weight of the constrain loss. ignored if constrain_latent_embedding is False. 
+        :param optimizer_parameters: Iterable. Parameters to be optimized. If not provided, all parameters will be optimized.
+        :param validation_split: float. Percentage of data to be used as validation set.
+        :param lr: float. Learning rate.
+        :param lr_schedule: bool. Whether to use learning rate scheduler.
+        :param lr_factor: float. Factor to reduce learning rate.
+        :param lr_patience: int. Number of epoch to wait before reducing learning rate.
+        :param lr_threshold: float. Threshold to trigger learning rate reduction.
+        :param lr_min: float. Minimum learning rate.
+        :param n_epochs_kl_warmup: int. Number of epoch to warmup the KL divergence loss (deterministic warm-up
+        of the KL-term).
+        :param weight_decay: float. Weight decay (L2 penalty).
+        :param random_seed: int. Random seed.
+        :param subset_indices: Union[torch.tensor, np.ndarray]. Indices of cells to be used for training. If not provided, all cells will be used.
+        :param pred_last_n_epoch: int. Number of epoch to train the prediction layer only.
+        :param pred_last_n_epoch_fconly: bool. Whether to train the prediction layer only.
+        :param reconstruction_reduction: str. Reduction method for reconstruction loss. Can be 'sum' or 'mean'.
         """
         self.train()
         if max_epoch is None:

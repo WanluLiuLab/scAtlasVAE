@@ -51,11 +51,23 @@ We need to make sure that the number of genes in the new data is the same as the
     batch_hidden_dim=64,
     pretrained_state_dict=model_state_dict['model_state_dict'],
   )
-  query_predictions = model.predict_labels(
+  predictions = query_model.predict_labels(
     return_pandas=True,
     show_progress=True
   )
+  predictions.columns = list(map(lambda x: 'predicted_'+x, predictions.columns))
+  query_adata.obs = query_adata.obs.join(predictions)
 
+  predictions_logits = query_model.predict_batch(return_pandas=False)
+  query_adata.uns['predictions_logits'] = predictions_logits
+
+  count, fig = scatlasvae.ut.cell_type_alignment(
+    query_adata,
+    obs_1='original_celltype', 
+    obs_2='predicted_cell_type, 
+    return_fig=True
+  )
+  fig.show() 
 
 
 Getting the transfered latent embedding
@@ -109,8 +121,21 @@ reference and query datasets. This would results in more accurate prediction of 
     batch_hidden_dim=64
   )
 
-  all_predictions = model.predict_labels(
+  predictions = model.predict_labels(
     return_pandas=True,
     show_progress=True
   )
 
+  predictions.columns = list(map(lambda x: 'predicted_'+x, predictions.columns))
+  merged_adata.obs = merged_adata.obs.join(predictions)
+
+  predictions_logits = model.predict_batch(return_pandas=False)
+  merged_adata.uns['predictions_logits'] = predictions_logits
+
+  count, fig = scatlasvae.ut.cell_type_alignment(
+    merged_adata[query_adata.obs.index], 
+    obs_1='original_celltype', 
+    obs_2='predicted_cell_type, 
+    return_fig=True
+  )
+  fig.show() 

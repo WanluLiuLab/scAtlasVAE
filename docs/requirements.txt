@@ -3,6 +3,7 @@ sphinx_rtd_theme
 sphinx-hoverxref
 ipykernel
 nbsphinx
+plotly==5.10.0
 anndata==0.8.0
 scikit-learn==0.24.1 
 einops==0.4.1 
@@ -17,4 +18,5 @@ matplotlib==3.5.2
 scanpy==1.8.1
 scikit-learn==0.24.1 
 scirpy==0.10.1
+tabulate=0.8.9
 logomaker

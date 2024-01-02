@@ -60,8 +60,7 @@ Training the VAE model using batch key and categorical covariates (e.g. `study_n
 
   vae_model = scatlasvae.model.scAtlasVAE(
     adata=adata,
-    batch_key="sample_name", 
-    additional_batch_keys=['study_name'],
+    batch_key=["sample_name","study_name"],
     batch_embedding='embedding', 
     device='cuda:0', 
     batch_hidden_dim=64
@@ -91,23 +90,37 @@ Training the VAE model using batch key and label key (e.g. `cell_type`)
 Training the VAE model using multiple batch keys and mutiple label keys
 -----------------------------------------------------------------------
 
-
 .. code-block:: python
   :linenos:
   
   vae_model = scatlasvae.model.scAtlasVAE(
     adata=adata,
-    batch_key="sample_name", 
+    batch_key=["sample_name", "study_name"],
     additional_batch_keys=['study_name'],
-    label_key='cell_type_1',
-    additional_label_keys=['cell_type_2'],
+    label_key=["cell_type_1","cell_type_2"],
     batch_embedding='embedding', 
     device='cuda:0', 
-    batch_hidden_dim=64,
+    batch_hidden_dim=10,
   )
   loss_record = vae_model.fit()
   adata.obsm['X_gex'] = vae_model.get_latent_embedding()
 
+  predictions = vae_model.predict_labels(return_pandas=True)
+  predictions.columns = list(map(lambda x: 'predicted_'+x, predictions.columns))
+  adata.obs = adata.obs.join(predictions)
+
+  predictions_logits = vae_model.predict_batch(return_pandas=False)
+  adata.uns['predictions_logits'] = predictions_logits
+
+  count, fig = scatlasvae.ut.cell_type_alignment(
+    adata, 
+    obs_1='predicted_cell_type_1', 
+    obs_2='predicted_cell_type_2', 
+    return_fig=True
+  )
+  fig.show() 
+
+  
 Saving the VAE model
 --------------------
 

@@ -22,10 +22,6 @@ preprocessed data from CellRanger.
     :show-inheritance:
 
 
-.. autodata:: scatlasvae.pp.HSAP_REF_DATA
-
-.. autodata:: scatlasvae.pp.MMUS_REF_DATA
-
 Model
 -----
 
@@ -59,8 +55,9 @@ scAtlasVAE's Methods
 .. automethod:: scAtlasVAE.fit
 
 
-
 Utilities
 ---------
 
 .. autofunction:: scatlasvae.utils.transfer_umap
+.. autofunction:: scatlasvae.utils.cell_type_alignment
+.. autofunction:: scatlasvae.utils.get_default_device

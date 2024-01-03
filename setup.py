@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="scAtlasVAE",
-    version="0.0.4",
+    version="0.0.5",
     author="Ziwei Xue",
     author_email="xueziweisz@gmail.com",
     description="scAtlasVAE: a deep learning framework for atlas-scale scRNA-seq integration and analysis",
@@ -11,7 +11,8 @@ setuptools.setup(
     packages=setuptools.find_packages("scatlasvae", exclude=[
         "*reference*",
         "*pretrained_weights*",
-        "*docs*"
+        "*docs*",
+        "data"
     ]),
     install_requires=[
         'anndata==0.8.0',
@@ -23,6 +24,7 @@ setuptools.setup(
         'seaborn==0.12.2',
         'scirpy==0.10.1',
         'pandas==1.4.2',
+        'tabulate==0.8.9',
         'umap-learn',
     ],
     dependency_links=['https://download.pytorch.org/whl/cu117'],

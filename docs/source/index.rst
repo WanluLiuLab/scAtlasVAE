@@ -20,6 +20,5 @@ Contents
    gex_integration
    gex_transfer
    gex_retraining
-   notebooks/huARdb_T_DeepInsight_notebook
-   notebooks/huARdb_CD8_Mapper
+   notebooks/scAtlasVAE_CD8_T_cell_transfer_vignette.ipynb
    api

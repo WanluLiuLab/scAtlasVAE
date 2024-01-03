@@ -17,5 +17,5 @@ matplotlib==3.5.2
 scikit-learn==0.24.1 
 scirpy==0.10.1
 plotly==5.10.0
-tabulate=0.8.9
+tabulate==0.8.9
 logomaker

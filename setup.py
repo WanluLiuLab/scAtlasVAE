@@ -1,18 +1,21 @@
 import setuptools 
 
+
+version = '0.0.8'
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+    
 setuptools.setup(
     name="scAtlasVAE",
-    version="0.0.5",
+    version=version,
     author="Ziwei Xue",
     author_email="xueziweisz@gmail.com",
     description="scAtlasVAE: a deep learning framework for atlas-scale scRNA-seq integration and analysis",
     long_description="scAtlasVAE: a deep learning framework for atlas-scale scRNA-seq integration and analysis",
-    package_dir = {'': 'scatlasvae'},
-    packages=setuptools.find_packages("scatlasvae", exclude=[
+    packages=setuptools.find_packages(exclude=[
         "*reference*",
         "*pretrained_weights*",
         "*docs*",
-        "data"
     ]),
     install_requires=[
         'anndata==0.8.0',

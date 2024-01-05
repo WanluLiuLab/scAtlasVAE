@@ -54,10 +54,13 @@ scAtlasVAE's Methods
 .. automethod:: scAtlasVAE.setup_anndata
 .. automethod:: scAtlasVAE.fit
 
+Tools
+-----
+
+.. autofunction:: scatlasvae.tl.transfer_umap
+.. autofunction:: scatlasvae.tl.cell_type_alignment
 
 Utilities
 ---------
 
-.. autofunction:: scatlasvae.utils.transfer_umap
-.. autofunction:: scatlasvae.utils.cell_type_alignment
-.. autofunction:: scatlasvae.utils.get_default_device
+.. autofunction:: scatlasvae.ut.get_default_device

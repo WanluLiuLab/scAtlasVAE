@@ -9,6 +9,7 @@ if not within_flit():  # see function docstring on why this is there
     # (start with settings as several tools are using it)
     from . import model as model
     from . import preprocessing as pp
+    from . import tools as tl
     from . import data as data
     from . import utils as ut
     from . import pipeline as pipeline
@@ -29,5 +30,5 @@ if not within_flit():  # see function docstring on why this is there
 
     # has to be done at the end, after everything has been imported
     import sys
-    sys.modules.update({f'{__name__}.{m}': globals()[m] for m in ['model', 'pp', 'data', 'ut', 'pipeline']})
+    sys.modules.update({f'{__name__}.{m}': globals()[m] for m in ['model', 'pp', 'tl', 'data', 'ut', 'pipeline']})
     del sys

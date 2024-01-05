@@ -112,6 +112,10 @@ Training the VAE model using multiple batch keys and mutiple label keys
   predictions_logits = vae_model.predict_batch(return_pandas=False)
   adata.uns['predictions_logits'] = predictions_logits
 
+
+.. code-block:: python
+  :linenos:
+  
   count, fig = scatlasvae.ut.cell_type_alignment(
     adata, 
     obs_1='predicted_cell_type_1', 

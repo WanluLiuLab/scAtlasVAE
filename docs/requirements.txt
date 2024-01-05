@@ -1,6 +1,7 @@
 sphinx>=1.4
 sphinx_rtd_theme
 sphinx-hoverxref
+sphinx-express
 ipykernel
 nbsphinx
 plotly==5.10.0

@@ -8,20 +8,9 @@ from torch.distributions import kl_divergence as kld
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
-# Hugginface Transformers
-from transformers import (
-    BertConfig,
-    PreTrainedModel,
-    BertForMaskedLM
-)
-
 # Third Party
-from sklearn.neighbors import KNeighborsClassifier
-from joblib import dump, load
 import numpy as np
 from pathlib import Path
-import umap
-import einops
 import pandas as pd
 import scanpy as sc
 
@@ -34,7 +23,7 @@ from collections import Counter
 from itertools import chain
 from copy import deepcopy
 import json
-from typing import Callable, Mapping, Union, Iterable, Tuple, Optional, Mapping, Dict
+from typing import Mapping, Union, Iterable, Tuple, Optional, Mapping, Dict
 import os
 import warnings
 
@@ -48,13 +37,7 @@ from ..utils._logger import mt, mw, Colors, get_tqdm
 
 from ..utils._utilities import random_subset_by_key_fast, euclidean
 from ..utils._compat import Literal
-from ..utils._umap import transfer_umap
-from ..utils._umap import (
-    umap_is_installed,
-    cuml_is_installed,
-    get_default_umap_reducer,
-    get_default_cuml_reducer
-)
+from ..tools._umap import transfer_umap
 from ..utils._utilities import get_default_device
 from ..preprocessing._preprocess import subset_adata_by_genes_fill_zeros
 
@@ -169,10 +152,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         self.batch_key = batch_key if isinstance(batch_key, str) else batch_key[0] if batch_key is not None and isinstance(batch_key, Iterable) else None
         self.batch_category = None 
         self.batch_category_summary = None 
-        self.additional_batch_keys = [] if isinstance(batch_key, str) or (isinstance(batch_key, Iterable) and len(batch_key) == 1) else batch_key[1:] if batch_key is not None else None
+        self.additional_batch_keys = None if isinstance(batch_key, str) or (isinstance(batch_key, Iterable) and len(batch_key) == 1) else batch_key[1:] if batch_key is not None else None
         self.additional_batch_category = None 
         self.additional_batch_category_summary = None 
-        self.additional_label_keys = [] if isinstance(label_key, str) or (isinstance(label_key, Iterable) and len(label_key) == 1) else label_key[1:] if label_key is not None else None
+        self.additional_label_keys = None if isinstance(label_key, str) or (isinstance(label_key, Iterable) and len(label_key) == 1) else label_key[1:] if label_key is not None else None
         self.additional_label_category = None 
         self.additional_label_category_summary = None 
 

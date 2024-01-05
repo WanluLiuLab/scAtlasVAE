@@ -47,6 +47,9 @@ def print_gpu_mem(i):
 
 
 def get_default_device():
+    """
+    Get the default device for training
+    """
     devices = {}
     n_cuda_device = torch.cuda.device_count()
     if n_cuda_device > 0:

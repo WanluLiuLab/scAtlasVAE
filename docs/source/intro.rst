@@ -50,7 +50,9 @@ Task 1: Building reference atlas from scatch
   :width: 800
   :alt: Task1
 
-scAtlasVAE can be used to build reference atlas without prior cell type annotation. The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. See :doc:`gex_integration` for more details.`
+scAtlasVAE can be used to build reference atlas without prior cell type annotation. 
+The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. 
+See :doc:`gex_integration` for more details.`
 
 
 Task 2: Query-to-reference mapping with cell type annotation
@@ -59,7 +61,9 @@ Task 2: Query-to-reference mapping with cell type annotation
   :width: 800
   :alt: Task2
 
-scAtlasVAE can be used to map query dataset to reference atlas with cell type annotation. The query dataset can be used for downstream tasks such as multi-atlas integration. See :doc:`gex_transfer` for more details.
+scAtlasVAE can be used to map query dataset to reference atlas with cell type annotation. 
+The query dataset can be used for downstream tasks such as multi-atlas integration.
+ See :doc:`gex_transfer` for more details.
 
 Task 3: Multi-atlas integration with cell type alignment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -67,4 +71,6 @@ Task 3: Multi-atlas integration with cell type alignment
   :width: 800
   :alt: Task3
 
-scAtlasVAE can be used to build reference atlas without prior cell type annotation. The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. See :doc:`gex_integration` for more details.`
+scAtlasVAE can be used to build reference atlas without prior cell type annotation. The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. 
+See :doc:`gex_integration` for more details.
+See :ref:`Tools` for more details.

@@ -3,6 +3,50 @@ Introduction
 
 scAtlasVAE is a method for rapid atlas-level integration of large-scale scRNA-seq datasets and accurate data transfer for query datasets. 
 
+Installation
+------------
+
+Install via PyPI:
+
+.. code-block:: bash
+  :linenos:
+
+    pip install scAtlasVAE
+
+Install from source:
+
+.. code-block:: bash
+  :linenos:
+
+    git clone git@github.com:WanluLiuLab/scAtlasVAE.git
+    cd scAtlasVAE
+    pip3 install -r requirements.txt
+    python3 setup.py install
+
+
+Tutorial 
+--------
+
+Basic Usage
+~~~~~~~~~~~
+
+.. code-block:: python
+  :linenos:
+
+  import scatlasvae
+
+  # Load the data
+  adata = scatlasvae.read_h5ad("path/to/data.h5ad")
+  vae_model = scatlasvae.model.scAtlasVAE(
+    adata=adata,
+    batch_key="sample_name", 
+    batch_embedding='embedding'
+  )
+  vae_model.fit()
+
+
+See :doc:`gex_integration` for more details.
+See :doc:`gex_transfer` for more details.
 
 
 Model architecture
@@ -68,7 +112,7 @@ The query dataset can be used for downstream tasks such as multi-atlas integrati
 Task 3: Multi-atlas integration with cell type alignment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. image:: _static/imgs/scAtlasVAE_3.png 
-  :width: 800
+  :width: 390
   :alt: Task3
 
 scAtlasVAE can be used to build reference atlas without prior cell type annotation. The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. 

@@ -9,10 +9,8 @@ This is a repository for the code for integrating multi-source gene expression (
 
   import scatlasvae
 
-  # Load the data
-  adata = tdi.data.human_gex_reference_v2()
-
-
+  adata = scatlasvae.read_h5ad("path/to/adata.h5ad")
+  
 The `adata` is a :class:`anndata.AnnData` object with raw GEX count matrix stored in adata.X.
 
 
@@ -115,7 +113,7 @@ Training the VAE model using multiple batch keys and mutiple label keys
 
 .. code-block:: python
   :linenos:
-  
+
   count, fig = scatlasvae.ut.cell_type_alignment(
     adata, 
     obs_1='predicted_cell_type_1', 

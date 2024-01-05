@@ -8,6 +8,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setuptools.setup(
     name="scAtlasVAE",
     version=version,
+    url="https://github.com/WanluLiuLab/scAtlasVAE",
     author="Ziwei Xue",
     author_email="xueziweisz@gmail.com",
     description="scAtlasVAE: a deep learning framework for atlas-scale scRNA-seq integration and analysis",

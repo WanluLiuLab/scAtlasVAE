@@ -13,9 +13,9 @@ This is a repository for the code for retraining multi-source gene expression (G
   query_adata = scatlasvae.read_h5ad("query_adata.h5ad")
   assert(reference_adata.shape[1] != query_adata.shape[1])
 
-The `reference_adata` and `query_adata` are :class:`anndata.AnnData` objects with raw GEX count matrix stored in adata.X, with different number of genes
+The :code:`reference_adata` and :code:`query_adata` are :class:`anndata.AnnData` objects with raw GEX count matrix stored in adata.X, with different number of genes
 To enable transfer between the two datasets, we need to first re-train a VAE model on the reference dataset using the shared genes between the two datasets.    
-The `X_gex` is the VAE embedding of the GEX data obtained from previous training. The `constrain_latent_embedding` and `constrain_latent_key` arguments constrain the VAE embedding to be close to the `X_gex` embedding. This is useful when the VAE model is trained on a different subset of genes (e.g. highly variable genes) and we want to use the VAE embedding of the full set of genes.
+The :code:`X_gex` is the VAE embedding of the GEX data obtained from previous training. The :code:`constrain_latent_embedding` and :code:`constrain_latent_key` arguments constrain the VAE embedding to be close to the :code:`X_gex` embedding. This is useful when the VAE model is trained on a different subset of genes (e.g. highly variable genes) and we want to use the VAE embedding of the full set of genes.
 
 
 .. code-block:: python

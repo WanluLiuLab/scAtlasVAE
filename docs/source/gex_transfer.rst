@@ -15,7 +15,7 @@ Transfer **without** training query datasets with reference datasets
   # Load the data
   query_adata = scatlasvae.read_h5ad("query_adata.h5ad")
 
-The `adata` is a :class:`anndata.AnnData` object with raw GEX count matrix stored in adata.X.
+The :code:`adata` is a :class:`anndata.AnnData` object with raw GEX count matrix stored in adata.X.
 To transfer the GEX data, we first need to build a VAE model with previously trained model parameters weights.
 
 
@@ -92,8 +92,8 @@ Mapping the UMAP representation to the reference
     method = 'knn'
   ) 
 
-Optionally, if the `label_key` or `additional_label_keys` is setted in the reference 
-model, one can use `query_model.predict_labels()` to get the transfered cell types. 
+Optionally, if the :code:`label_key` or :code:`additional_label_keys` is setted in the reference 
+model, one can use :code:`query_model.predict_labels()` to get the transfered cell types. 
 
 
 

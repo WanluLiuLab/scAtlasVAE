@@ -75,7 +75,9 @@ You can simply use our preprocessing pipeline to preprocess the data.
     )
     
 
-HSAP_REF_DATA['Tonly'] contains all cell type annotations for T cells:
+:code:`HSAP_REF_DATA['Tonly']` contains all cell type annotations for T cells:
+
+
 * Central memory CD8 T cells
 * Effector memory CD8 T cells
 * Follicular helper T cells
@@ -91,7 +93,9 @@ HSAP_REF_DATA['Tonly'] contains all cell type annotations for T cells:
 * Th17 cells
 * Th2 cells
 
-HSAP_REF_DATA['TBonly'] contains additional cell type annotations for B cells:
+:code:`HSAP_REF_DATA['TBonly']` contains additional cell type annotations for B cells:
+
+
 * Plasmablasts
 * Naive B cells 
 * Non-switched memory B cells
@@ -102,6 +106,7 @@ HSAP_REF_DATA['TBonly'] contains additional cell type annotations for B cells:
   You should have R installed and the Rscript executable should be in the PATH. 
   You can also specify the path to the Rscript executable by the argument "r_path". Make 
   sure your R version is >= 4.0.3 and the following R packages are installed:
+
 
   * Seurat.
   * DoubletFinder.
@@ -124,12 +129,13 @@ The output files should include the following files:
     │   ├── results_single_chain_raw.h5ad
     │   ├── rscript.R
 
-* The `results_raw.h5ad` is the raw data file. 
-* The `results_preprocessed.h5ad` is the preprocessed data file.
-* The `results_single_chain_raw.h5ad` is the raw data file for single chain TCRs (or BCRs).
-* The `results_single_chain_preprocessed.h5ad` is the preprocessed data file for single chain TCRs.
-* The `filterDoublet_prediction_sce.h5ad` is the doublet prediction file.
-* The `all_contig_annotations.json` is the json file for the VDJ annotation.
-* The `rscript.R` is the R script for the preprocessing.
+
+* The :code:`results_raw.h5ad` is the raw data file. 
+* The :code:`results_preprocessed.h5ad` is the preprocessed data file with extra chain TCRs (or BCRs).
+* The :code:`results_single_chain_raw.h5ad` is the raw data file for single chain TCRs (or BCRs).
+* The :code:`results_single_chain_preprocessed.h5ad` is the preprocessed data file for single chain TCRs (or BCRs).
+* The :code:`filterDoublet_prediction_sce.h5ad` is the doublet prediction file.
+* The :code:`all_contig_annotations.json` is the json file for the VDJ annotation.
+* The :code:`rscript.R` is the R script for the preprocessing.
 
 

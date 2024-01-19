@@ -69,7 +69,8 @@ def get_default_device():
             v['selected'] = '*'
         else:
             v['selected'] = ' '
-    print(tabulate.tabulate(pd.DataFrame(devices).T))
+    _df = pd.DataFrame(devices).T
+    print(tabulate.tabulate(_df, headers=_df.columns))
     return selected_device
 
 

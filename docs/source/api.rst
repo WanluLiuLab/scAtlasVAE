@@ -57,7 +57,7 @@ scAtlasVAE's Methods
 Tools
 -----
 
-.. autofunction:: scatlasvae.tl.transfer_umap
+.. autofunction:: scatlasvae.tl.umap_alignment
 .. autofunction:: scatlasvae.tl.cell_type_alignment
 
 Utilities

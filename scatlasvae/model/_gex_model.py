@@ -37,7 +37,7 @@ from ..utils._logger import mt, mw, Colors, get_tqdm
 
 from ..utils._utilities import random_subset_by_key_fast, euclidean
 from ..utils._compat import Literal
-from ..tools._umap import transfer_umap
+from ..tools._umap import umap_alignment
 from ..utils._utilities import get_default_device
 from ..preprocessing._preprocess import subset_adata_by_genes_fill_zeros
 
@@ -1491,7 +1491,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         else:
             raise NotImplementedError()
 
-    def transfer_umap(
+    def umap_alignment(
         self,
         reference_adata: sc.AnnData,
         label_key: str,
@@ -1499,7 +1499,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         use_rep: str = 'X_gex',
         **method_kwargs
     ):
-        transfer_umap(
+        umap_alignment(
             reference_adata.obsm[use_rep],
             reference_adata.obsm['X_umap'],
             reference_adata.obsm[use_rep],

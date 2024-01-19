@@ -19,7 +19,7 @@ pip3 install scatlasvae
 
 ### Install PyTorch 
 
-Please see the [PyTorch official website](https://pytorch.org/) for installing GPU-enabled versino of PyTorch.
+Please see the [PyTorch official website](https://pytorch.org/) for installing GPU-enabled version of PyTorch.
 
 ```python
 # Testing if CUDA is available

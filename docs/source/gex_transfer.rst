@@ -85,7 +85,7 @@ Mapping the UMAP representation to the reference
 .. code-block:: python
   :linenos:
   
-  query_adata.obsm['X_umap'] = tdi.ut.transfer_umap(
+  query_adata.obsm['X_umap'] = tdi.ut.umap_alignment(
     reference_adata.obsm['X_gex'],
     reference_adata.obsm['X_umap'],
     query_adata.obsm['X_gex']

@@ -1,15 +1,17 @@
-from collections import Counter 
+from collections import Counter
 import numpy as np
-import scanpy as sc 
+import scanpy as sc
+
 
 def cell_type_alignment(
-    adata: sc.AnnData, 
-    obs_1: str, 
-    obs_2: str, 
+    adata: sc.AnnData,
+    obs_1: str,
+    obs_2: str,
     palette_1: dict = None,
     palette_2: dict = None,
     perc_in_obs_1: float = 0.1,
-    return_fig: bool = True
+    ignore_label: str = "undefined",
+    return_fig: bool = True,
 ):
     """
     Plot a Sankey diagram of cell type alignment between two obs columns.
@@ -33,25 +35,39 @@ def cell_type_alignment(
         raise ValueError(f"obs_1 {obs_1} not in adata.obs.columns")
     if obs_2 not in adata.obs.columns:
         raise ValueError(f"obs_2 {obs_2} not in adata.obs.columns")
-    if palette_1 is None: 
+    if palette_1 is None:
         try:
             palette_1 = sc.pl._tools.scatterplots._get_palette(adata, obs_1)
         except:
-            palette_1 = dict(zip(np.unique(adata.obs[obs_1]), ['#000000'] * len(np.unique(adata.obs[obs_1]))))
+            palette_1 = dict(
+                zip(
+                    np.unique(adata.obs[obs_1]),
+                    ["#000000"] * len(np.unique(adata.obs[obs_1])),
+                )
+            )
     if palette_2 is None:
         try:
             palette_2 = sc.pl._tools.scatterplots._get_palette(adata, obs_2)
         except:
-            palette_2 = dict(zip(np.unique(adata.obs[obs_2]), ['#000000'] * len(np.unique(adata.obs[obs_2]))))
+            palette_2 = dict(
+                zip(
+                    np.unique(adata.obs[obs_2]),
+                    ["#000000"] * len(np.unique(adata.obs[obs_2])),
+                )
+            )
     count = {}
-    c = Counter(adata.obs[obs_1])
+
+    c = Counter(adata.obs.loc[adata.obs[obs_1] != ignore_label, obs_1])
 
     agg = adata.obs.groupby(obs_1).agg({obs_2: Counter})
-    for i,j in zip(agg.index,agg.iloc[:,0]):
-        for k,v in j.items():
-            count[(i,k)]  = v
-            
-    count = dict(list(filter(lambda x: x[1] / c[x[0][0]] > perc_in_obs_1, count.items())))
+    for i, j in zip(agg.index, agg.iloc[:, 0]):
+        for k, v in j.items():
+            if i != ignore_label and k != ignore_label:
+                count[(i, k)] = v
+
+    count = dict(
+        list(filter(lambda x: x[1] / c[x[0][0]] > perc_in_obs_1, count.items()))
+    )
     if not return_fig:
         return count
     else:
@@ -59,22 +75,36 @@ def cell_type_alignment(
             import plotly.graph_objects as go
         except:
             raise ImportError("Please install plotly to use this function.")
-        
+
         labels = list(np.unique(adata.obs[obs_1])) + list(np.unique(adata.obs[obs_2]))
-        fig = go.Figure(data=[go.Sankey(
-            node = dict(
-                pad = 15,
-                thickness = 20,
-                line = dict(color = "black", width = 0.5),
-                label = labels,
-                color = "blue"
-            ),
-            link = dict(
-                source = list(map(lambda x: labels.index(x), list(map(lambda z: z[0], count.keys())))), # indices correspond to labels, eg A1, A2, A1, B1, ...
-                target = list(map(lambda x: labels.index(x), list(map(lambda z: z[1], count.keys())))),
-                value = list(count.values())
-            )
-        )])
+        fig = go.Figure(
+            data=[
+                go.Sankey(
+                    node=dict(
+                        pad=15,
+                        thickness=20,
+                        line=dict(color="black", width=0.5),
+                        label=labels,
+                        color="blue",
+                    ),
+                    link=dict(
+                        source=list(
+                            map(
+                                lambda x: labels.index(x),
+                                list(map(lambda z: z[0], count.keys())),
+                            )
+                        ),  # indices correspond to labels, eg A1, A2, A1, B1, ...
+                        target=list(
+                            map(
+                                lambda x: labels.index(x),
+                                list(map(lambda z: z[1], count.keys())),
+                            )
+                        ),
+                        value=list(count.values()),
+                    ),
+                )
+            ]
+        )
 
         fig.update_layout(title_text="Basic Sankey Diagram", font_size=10)
         return count, fig

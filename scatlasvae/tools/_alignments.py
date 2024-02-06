@@ -10,6 +10,7 @@ def cell_type_alignment(
     palette_1: dict = None,
     palette_2: dict = None,
     perc_in_obs_1: float = 0.1,
+    perc_in_obs_2: float = 0.1,
     ignore_label: str = "undefined",
     return_fig: bool = True,
 ):
@@ -57,7 +58,9 @@ def cell_type_alignment(
             )
     count = {}
 
-    c = Counter(adata.obs.loc[adata.obs[obs_1] != ignore_label, obs_1])
+    c1 = Counter(adata.obs.loc[adata.obs[obs_1] != ignore_label, obs_1])
+    c2 = Counter(adata.obs.loc[adata.obs[obs_2] != ignore_label, obs_2])
+
 
     agg = adata.obs.groupby(obs_1).agg({obs_2: Counter})
     for i, j in zip(agg.index, agg.iloc[:, 0]):
@@ -66,7 +69,8 @@ def cell_type_alignment(
                 count[(i, k)] = v
 
     count = dict(
-        list(filter(lambda x: x[1] / c[x[0][0]] > perc_in_obs_1, count.items()))
+        list(filter(lambda x: x[1] / c1[x[0][0]] > perc_in_obs_1 and \
+           x[1] / c2[x[0][1]] > perc_in_obs_2 , count.items()))
     )
     if not return_fig:
         return count
@@ -106,5 +110,4 @@ def cell_type_alignment(
             ]
         )
 
-        fig.update_layout(title_text="Basic Sankey Diagram", font_size=10)
         return count, fig

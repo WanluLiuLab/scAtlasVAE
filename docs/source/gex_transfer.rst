@@ -16,8 +16,7 @@ Transfer **without** training query datasets with reference datasets
   query_adata = scatlasvae.read_h5ad("query_adata.h5ad")
 
 The :code:`adata` is a :class:`anndata.AnnData` object with raw GEX count matrix stored in adata.X.
-To transfer the GEX data, we first need to build a VAE model with previously trained model parameters weights.
-
+To transfer the GEX data to previously established reference, we first need to build a VAE model trained on the reference data.
 
 .. code-block:: python
   :linenos:
@@ -36,7 +35,8 @@ To transfer the GEX data, we first need to build a VAE model with previously tra
   reference_model.save_to_disk("model.pt")
 
 
-We need to make sure that the number of genes in the new data is the same as the number of genes in the training data. If not, please see the `Retraining Multi-source GEX Data <gex_retraining.html>`_ tutorial for how to transfer GEX data with different number of genes.
+We need to make sure that the number of genes in the new data is the same as the number of genes in the training data. 
+If not, please see the `Retraining Multi-source GEX Data <gex_retraining.html>`_ tutorial for how to transfer GEX data with different number of genes.
 
 .. code-block:: python
   :linenos:
@@ -100,8 +100,10 @@ model, one can use :code:`query_model.predict_labels()` to get the transfered ce
 Transfer by training query datasets with reference datasets
 -----------------------------------------------------------
 
-The more accurate way to project query data to reference data is by co-training the 
-reference and query datasets. This would results in more accurate prediction of cell types.
+The alternative way to project query data to reference data is by co-training the 
+reference and query datasets. However, this approach is more computationally expensive since
+we need to train the model on both reference and query datasets, and the model is not
+guaranteed to be the same as the model trained on the reference dataset alone.
 
 .. code-block:: python
   :linenos:

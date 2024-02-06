@@ -18,7 +18,7 @@ Training the VAE model using batch key
 --------------------------------------
 
 
-The following use `sample_name` as the batch key. The batch index is converted to **8-dimensional embedding** for the decoder part of the model to remove the batch effect. 
+The following use `sample_name` as the batch key. The batch index is converted to **10-dimensional embedding** for the decoder part of the model to remove the batch effect. 
 
 
 .. code-block:: python
@@ -29,7 +29,7 @@ The following use `sample_name` as the batch key. The batch index is converted t
     batch_key="sample_name", 
     batch_embedding='embedding', 
     device='cuda:0', 
-    batch_hidden_dim=8,
+    batch_hidden_dim=10,
   )
   loss_record = vae_model.fit()
   adata.obsm['X_gex'] = vae_model.get_latent_embedding()
@@ -66,7 +66,7 @@ Training the VAE model using batch key and categorical covariates (e.g. `study_n
     batch_key=["sample_name","study_name"],
     batch_embedding='embedding', 
     device='cuda:0', 
-    batch_hidden_dim=8
+    batch_hidden_dim=10
   )
   loss_record = vae_model.fit()
   adata.obsm['X_gex'] = vae_model.get_latent_embedding()
@@ -86,7 +86,7 @@ Training the VAE model using batch key and label key (e.g. `cell_type`)
     label_key='cell_type',
     batch_embedding='embedding', 
     device='cuda:0', 
-    batch_hidden_dim=8,
+    batch_hidden_dim=10,
   )
   loss_record = vae_model.fit()
   adata.obsm['X_gex'] = vae_model.get_latent_embedding()

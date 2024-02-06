@@ -40,13 +40,48 @@ Basic Usage
   vae_model = scatlasvae.model.scAtlasVAE(
     adata=adata,
     batch_key="sample_name", 
-    batch_embedding='embedding'
   )
   vae_model.fit()
 
 
 See :doc:`gex_integration` for more details.
 See :doc:`gex_transfer` for more details.
+
+
+
+Key functionality
+-----------------
+
+Task 1: Building reference atlas from scatch
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. image:: _static/imgs/scAtlasVAE_1.png 
+  :width: 800
+  :alt: Task1
+
+scAtlasVAE can be used to build reference atlas without prior cell type annotation. 
+The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. 
+See :doc:`gex_integration` for more details.`
+
+
+Task 2: Query-to-reference mapping with cell type annotation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. image:: _static/imgs/scAtlasVAE_2.png 
+  :width: 800
+  :alt: Task2
+
+scAtlasVAE can be used to map query dataset to reference atlas with cell type annotation. 
+The query dataset can be used for downstream tasks such as multi-atlas integration.
+ See :doc:`gex_transfer` for more details.
+
+Task 3: Multi-atlas integration with cell type alignment
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. image:: _static/imgs/scAtlasVAE_3.png 
+  :width: 390
+  :alt: Task3
+
+scAtlasVAE can be used to build reference atlas without prior cell type annotation. The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. 
+See :doc:`gex_integration` for more details.
+See :ref:`Tools` for more details.
 
 
 Model architecture
@@ -85,36 +120,3 @@ scAtlasVAE includes cell type predictor :math:`\mathcal{F}_{\mathrm{celltype}}(\
 where :math:`C_a` is the number of cell types in category a, :math:`{f_{{celltype}_a}\left(x_{a,n}\right)}_c` is the logits of cell type prediction for cell type :math:`c`, :math:`{\hat{y}}_{a,n}`  is the ground truth cell type of category :math:`a` for cell :math:`n`. :math:`{w_{\hat{y}}}_{a,n}` is the weight of cell type :math:`{\hat{y}}_{a,n}` inversely proportional to the number of cell types in category :math:`a`. The :math:`{ \mathrm{ignore\_index}}_a` indicates whether the cell type a is available for cell :math:`n`. 
 
 
-Key functionality
------------------
-
-Task 1: Building reference atlas from scatch
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. image:: _static/imgs/scAtlasVAE_1.png 
-  :width: 800
-  :alt: Task1
-
-scAtlasVAE can be used to build reference atlas without prior cell type annotation. 
-The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. 
-See :doc:`gex_integration` for more details.`
-
-
-Task 2: Query-to-reference mapping with cell type annotation
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. image:: _static/imgs/scAtlasVAE_2.png 
-  :width: 800
-  :alt: Task2
-
-scAtlasVAE can be used to map query dataset to reference atlas with cell type annotation. 
-The query dataset can be used for downstream tasks such as multi-atlas integration.
- See :doc:`gex_transfer` for more details.
-
-Task 3: Multi-atlas integration with cell type alignment
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. image:: _static/imgs/scAtlasVAE_3.png 
-  :width: 390
-  :alt: Task3
-
-scAtlasVAE can be used to build reference atlas without prior cell type annotation. The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. 
-See :doc:`gex_integration` for more details.
-See :ref:`Tools` for more details.

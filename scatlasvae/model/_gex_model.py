@@ -97,7 +97,9 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
        n_additional_batch: Optional[Iterable[int]] = None,
        n_additional_label: Optional[Iterable[int]] = None,
        batch_key = None,
+       additional_batch_keys = None, #TODO: deprecate in the future
        label_key = None,
+       additional_label_keys = None, #TODO: deprecate in the future
        dispersion:  Literal["gene", "gene-batch", "gene-cell"] = "gene-cell",
        log_variational: bool = True,
        total_variational: bool = False,
@@ -152,10 +154,21 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         self.batch_key = batch_key if isinstance(batch_key, str) else batch_key[0] if batch_key is not None and isinstance(batch_key, Iterable) else None
         self.batch_category = None 
         self.batch_category_summary = None 
-        self.additional_batch_keys = None if isinstance(batch_key, str) or (isinstance(batch_key, Iterable) and len(batch_key) == 1) else batch_key[1:] if batch_key is not None else None
+        if additional_batch_keys is None:
+            self.additional_batch_keys = None if isinstance(batch_key, str) or (isinstance(batch_key, Iterable) and len(batch_key) == 1) else batch_key[1:] if batch_key is not None else None
+        else: 
+            #TODO: deprecate in the future
+            self.additional_batch_keys = additional_batch_keys
+
         self.additional_batch_category = None 
         self.additional_batch_category_summary = None 
-        self.additional_label_keys = None if isinstance(label_key, str) or (isinstance(label_key, Iterable) and len(label_key) == 1) else label_key[1:] if label_key is not None else None
+
+        if additional_label_keys is None:
+            self.additional_label_keys = None if isinstance(label_key, str) or (isinstance(label_key, Iterable) and len(label_key) == 1) else label_key[1:] if label_key is not None else None
+        else:
+            #TODO: deprecate in the future
+            self.additional_label_keys = additional_label_keys
+            
         self.additional_label_category = None 
         self.additional_label_category_summary = None 
 

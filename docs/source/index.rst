@@ -20,5 +20,4 @@ Contents
    gex_integration
    gex_transfer
    gex_retraining
-   notebooks/scAtlasVAE_CD8_T_cell_transfer_vignette.ipynb
    api

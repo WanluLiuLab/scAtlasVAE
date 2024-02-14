@@ -73,6 +73,7 @@ scAtlasVAE can be used to map query dataset to reference atlas with cell type an
 The query dataset can be used for downstream tasks such as multi-atlas integration.
  See :doc:`gex_transfer` for more details.
 
+
 Task 3: Multi-atlas integration with cell type alignment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. image:: _static/imgs/scAtlasVAE_3.png 

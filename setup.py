@@ -1,7 +1,7 @@
 import setuptools 
+from scatlasvae._version import version
 
-
-version = '0.0.9'
+version = version
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
     

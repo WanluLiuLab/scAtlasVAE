@@ -85,12 +85,12 @@ Mapping the UMAP representation to the reference
 .. code-block:: python
   :linenos:
   
-  query_adata.obsm['X_umap'] = tdi.ut.umap_alignment(
+  query_adata.obsm['X_umap'] = scatlasvae.tl.umap_alignment(
     reference_adata.obsm['X_gex'],
     reference_adata.obsm['X_umap'],
     query_adata.obsm['X_gex']
     method = 'knn'
-  ) 
+  )['embedding']
 
 Optionally, if the :code:`label_key` or :code:`additional_label_keys` is setted in the reference 
 model, one can use :code:`query_model.predict_labels()` to get the transfered cell types. 

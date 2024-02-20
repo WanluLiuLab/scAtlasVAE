@@ -23,7 +23,9 @@ pretrained_weights/
 *.gtf
 
 .vscode/
-data/
+data/datasets 
+data/pretrained_weights
+
 
 # Distribution / packaging
 .Python

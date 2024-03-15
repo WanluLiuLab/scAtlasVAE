@@ -90,7 +90,7 @@ def mt(*msg):
         # in python 3, the following works
         # print(*msg)
         # due to compatibility with the print statement in python 2 we choose
-        print(time.asctime() + ' - TDI - INFO - ', end = '\t')
+        print(time.asctime() + ' - scAtlasVAE - INFO - ', end = '\t')
         print(' '.join([str(m) for m in msg]))
     else:
         out = ''
@@ -112,7 +112,7 @@ def mw(*msg):
         # in python 3, the following works
         # print(*msg)
         # due to compatibility with the print statement in python 2 we choose
-        print(time.asctime() + ' - TDI - WARNING - ', end = '\t')
+        print(time.asctime() + ' - scAtlasVAE - WARNING - ', end = '\t')
         print(Colors.YELLOW + ' '.join([str(m) for m in msg]) + Colors.NC)
     else:
         out = ''

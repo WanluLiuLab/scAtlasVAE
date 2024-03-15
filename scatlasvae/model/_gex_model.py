@@ -934,8 +934,9 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     dim=1
                 )
                 for i in range(len(self.additional_batch_keys)):
-                    mmd_loss_st += self.mmd_loss(
+                    mmd_loss_st += self.hierarchical_mmd_loss_2(
                         H['q_mu'], 
+                        batch_index.detach().cpu().numpy(),
                         additional_batch_index[i].detach().cpu().numpy(),
                         dim=1
                     )
@@ -1147,7 +1148,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     epoch_prediction_loss += prediction_loss.sum().item()
 
                 if epoch > max_epoch - pred_last_n_epoch:
-                    loss = avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss + prediction_loss.sum() + additional_prediction_loss.sum()
+                    loss = avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss + (prediction_loss.sum() + additional_prediction_loss.sum()) / (len(self.n_additional_label) if self.n_additional_label is not None else 0 + 1)
                 else:
                     loss = avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss
 

@@ -322,57 +322,70 @@ class ReparameterizeLayerBase(nn.Module):
 
 class MMDLayerBase:
     """Base layer for Maximum-mean descrepancy calculation"""
-    def hierarchical_mmd_loss(
-        self, 
-        z: torch.Tensor, 
-        cat: np.array, 
-        hierarchical_weight: Iterable[float]
-    ) -> torch.Tensor:
-        if len(cat.shape) <= 1:
-            raise ValueError("Illegal category array")
-        if len(z) != cat.shape[0]:
-            raise ValueError("Dimension of z {} should be equal to dimension of category {}".format(len(z), cat.shape[0]))
-        if len(hierarchical_weight) != cat.shape[1]:
-            raise ValueError("Dimension of hierarchical_weight {} should be equal to dimension of category {}".format(len(hierarchical_weight), cat.shape[1]))
-
-        if cat.shape[1] < 2:
-            cat = cat.flatten()
-            return self.MMDLoss(z, cat)
-        loss = 0
-        zs = []
-        for i in np.unique(cat[:, 0]):
-            idx = list(map(lambda t:t[0], filter(lambda x:x[1] == i, enumerate(cat[:,0]))))
-            loss += self.HierarchicalMMDLoss(z[idx], cat[idx,1:], hierarchical_weight[1:])
-            zs.append(z[idx])
-        for i in range(len(np.unique(cat[:,0]))):
-            for j in range(i+1, len(np.unique(cat[:,0]))):
-                loss += LossFunction.mmd_loss(
-                    zs[i], zs[j]
-                )
-        return loss
-
+    
     def mmd_loss(self, 
         z: torch.Tensor, 
         cat: np.array, 
         dim=-1,
+        min_n_samples: int = 2,
         flavor: Literal['trvae','default'] = 'trvae'
     ) -> torch.Tensor:
         zs = []
-        loss = 0
+        loss = torch.tensor(0.0, device=z.device)
         for i in np.unique(cat):
             idx = list(map(lambda z:z[0], filter(lambda x:x[1] == i, enumerate(cat))))
             zs.append(z[idx])
         for i in range(len(np.unique(cat))):
             for j in range(i+1,len(np.unique(cat))):
-                if flavor == 'trvae':
-                    loss += LossFunction.mmd_loss_trvae(
-                        zs[i], zs[j]
-                    )
-                else:
-                    loss += LossFunction.mmd_loss(
-                        zs[i], zs[j], dim=-1
-                    )
+                if zs[i].shape[0] > min_n_samples and zs[j].shape[0] > min_n_samples:
+                    if flavor == 'trvae':
+                        loss += LossFunction.mmd_loss_trvae(
+                            zs[i], zs[j]
+                        )
+                    else:
+                        loss += LossFunction.mmd_loss(
+                            zs[i], zs[j], dim=-1
+                        ) / len(zs)
         return loss
+    
+    def hierarchical_mmd_loss_2(self, 
+        z: torch.Tensor, 
+        cat1: np.array, 
+        cat2: np.array,
+        dim=-1,
+        min_n_samples: int = 2,
+        flavor: Literal['trvae','default'] = 'trvae'
+    ) -> torch.Tensor:
+        """
+        Hierachical mmd loss with indepdent categories
+
+        :param z: torch.Tensor: Latent space
+        :param cat1: np.array: Categories
+        :param cat2: np.array: Categories
+        """
+        loss = torch.tensor(0.0, device=z.device)
+
+        for i in np.unique(cat1):
+            zs = []
+            idx = list(map(lambda z:z[0], filter(lambda x:x[1] == i, enumerate(cat1))))
+            zz = z[idx]
+            for j in np.unique(cat2[idx]):
+                idx2 = list(map(lambda z: z[0], filter(lambda x:x[1] == j, enumerate(cat2[idx]))))
+                zzz = zz[idx2]
+                zs.append(zzz)
+            for i in range(len(np.unique(cat2[idx]))):
+                for j in range(i+1,len(np.unique(cat2[idx]))):
+                    if zs[i].shape[0] > min_n_samples and zs[j].shape[0] > min_n_samples:
+                        if flavor == 'trvae':
+                            loss += LossFunction.mmd_loss_trvae(
+                                zs[i], zs[j]
+                            ) / (len(zs) * len(np.unique(cat1)))
+                        else:
+                            loss += LossFunction.mmd_loss(
+                                zs[i], zs[j], dim=-1
+                            ) / (len(zs) * len(np.unique(cat1)))
+        return loss
+
 
 class FCLayer(nn.Module):
     """FCLayer Fully-Connected Layers for a neural network """

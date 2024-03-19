@@ -124,7 +124,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
        mmd_key: Optional[Literal['batch','additional_batch','both']] = None,
        unlabel_key: str = 'undefined',
        device: Optional[Union[str, torch.device]] = None,
-       pretrained_state_dict: Optional[Mapping[str, torch.Tensor]] = None,
+       pretrained_state_dict: Union[str, Optional[Mapping[str, torch.Tensor]]] = None,
     ) -> None:
         if device is None:
             device = get_default_device()
@@ -309,6 +309,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         self.to(device)
 
         if pretrained_state_dict is not None:
+            if isinstance(pretrained_state_dict, str):
+                pretrained_state_dict = torch.load(pretrained_state_dict)['model_state_dict']
             self.partial_load_state_dict(pretrained_state_dict)
 
 
@@ -417,7 +419,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     @staticmethod
     def setup_anndata(
         adata: sc.AnnData, 
-        path_to_state_dict: Optional[Union[str, Path]] = None, 
+        path_to_state_dict: Union[str, Path], 
         unlabel_key: str = 'undefined'
     ):
         """
@@ -438,59 +440,62 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
 
         if state_dict["batch_category"] is not None:
-            if state_dict['model_config']['batch_key'] not in adata.obs.keys():
-                adata.obs[state_dict['model_config']['batch_key']] = unlabel_key
-                adata.obs[state_dict['model_config']['batch_key']] = pd.Categorical(
-                    list(adata.obs[state_dict['model_config']['batch_key']] ),
-                    categories = pd.Categorical(
-                        state_dict["batch_category"].categories
-                    ).add_categories(unlabel_key).categories
+            batch_key = state_dict['model_config']['batch_key'] \
+                if type(state_dict['model_config']['batch_key']) == str \
+                else state_dict['model_config']['batch_key'][0]
+            
+            if batch_key not in adata.obs.keys():
+                adata.obs[batch_key] = unlabel_key
+                adata.obs[batch_key] = pd.Categorical(
+                    list(adata.obs[batch_key] ),
                 )
             else:
-                adata.obs[state_dict['model_config']['batch_key']] = pd.Categorical(
-                    list(adata.obs[state_dict['model_config']['batch_key']] ),
-                    categories=state_dict["batch_category"].categories
+                adata.obs[batch_key] = pd.Categorical(
+                    list(adata.obs[batch_key] ),
                 )
 
 
         if state_dict["label_category"] is not None:
-            if state_dict['model_config']['label_key'] not in adata.obs.keys():
-                adata.obs[state_dict['model_config']['label_key']] = unlabel_key
-                adata.obs[state_dict['model_config']['label_key']] = pd.Categorical(
-                    list(adata.obs[state_dict['model_config']['label_key']] ),
+            label_key = state_dict['model_config']['label_key'] \
+                if type(state_dict['model_config']['label_key']) == str \
+                else state_dict['model_config']['label_key'][0]
+            
+            if label_key not in adata.obs.keys():
+                adata.obs[label_key] = pd.Categorical(
+                    [unlabel_key] * adata.shape[0],
+                    categories = pd.Categorical(
+                        state_dict["label_category"].categories
+                    ).add_categories(unlabel_key).categories
+                )
+            else:
+                adata.obs[label_key] = list(adata.obs[label_key])
+                adata.obs[label_key] = pd.Categorical(
+                    list( adata.obs[label_key].fillna(unlabel_key) ),
                     categories = pd.Categorical(
                         state_dict["label_category"].categories
                     ).add_categories(unlabel_key).categories if \
                     unlabel_key not in state_dict["label_category"].categories else \
                     state_dict["label_category"].categories
                 )
-            else:
-                adata.obs[state_dict['model_config']['label_key']] = pd.Categorical(
-                    list(adata.obs[state_dict['model_config']['label_key']] ),
-                    categories=state_dict["label_category"].categories
-                )
 
         if state_dict["additional_batch_category"] is not None:
-            for i,k in enumerate(state_dict['model_config']['additional_batch_keys']):
+            additional_batch_keys = state_dict['model_config']['batch_key'][1:]
+            for i,k in enumerate(additional_batch_keys):
                 if k not in adata.obs.keys():
                     adata.obs[k] = unlabel_key
                     adata.obs[k] = pd.Categorical(
-                        list(adata.obs[k] ),
-                        categories = pd.Categorical(
-                            state_dict["additional_batch_category"][i].categories
-                        ).add_categories(unlabel_key).categories if \
-                        unlabel_key not in state_dict["additional_batch_category"][i].categories else \
-                        state_dict["additional_batch_category"][i].categories
+                        list( adata.obs[k] ),
                     )
 
                 else:
+                    adata.obs[k] = list(adata.obs[k])
                     adata.obs[k] = pd.Categorical(
-                        list(adata.obs[k] ),
-                        categories=state_dict["additional_batch_category"][i].categories
+                        list( adata.obs[k] ),
                     )
 
         if state_dict["additional_label_category"] is not None:
-            for i,k in enumerate(state_dict['model_config']['additional_label_keys']):
+            additional_label_keys = state_dict['model_config']['label_key'][1:]
+            for i,k in enumerate(additional_label_keys):
                 if k not in adata.obs.keys():
                     adata.obs[k] = unlabel_key
                     adata.obs[k] = pd.Categorical(
@@ -502,9 +507,14 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         state_dict["additional_label_category"][i].categories
                     )
                 else:
+                    adata.obs[k] = list(adata.obs[k])
                     adata.obs[k] = pd.Categorical(
-                        list(adata.obs[k] ),
-                        categories=state_dict["additional_label_category"][i].categories
+                        list(adata.obs[k].fillna(unlabel_key) ),
+                        categories= pd.Categorical(
+                            state_dict["additional_label_category"][i].categories
+                        ).add_categories(unlabel_key).categories if \
+                        unlabel_key not in state_dict["additional_label_category"][i].categories else \
+                        state_dict["additional_label_category"][i].categories
                     )
 
         return adata
@@ -518,8 +528,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 if self.constrain_n_batch:
                     mt(f"         setting n_batch to {n_batch_}")
                     self.n_batch = n_batch_
-            if not isinstance(self.adata.obs[self.batch_key], pd.Categorical):
-                self.batch_category = pd.Categorical(self.adata.obs[self.batch_key])
+            if not (isinstance(self.adata.obs[self.batch_key], pd.Categorical) or hasattr(self.adata.obs[self.batch_key], 'cat')):
+               self.adata.obs[self.batch_key] = pd.Categorical(self.adata.obs[self.batch_key])
+
+            self.batch_category = pd.Categorical(self.adata.obs[self.batch_key])
             self.batch_category_summary = dict(Counter(self.batch_category))
             for k in self.batch_category.categories:
                 if k not in self.batch_category_summary.keys():
@@ -535,12 +547,13 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     mt(f"         setting n_label to {n_label_}")
                     self.n_label = n_label_
 
-            if not isinstance(self.adata.obs[self.label_key], pd.Categorical):
+            if not (isinstance(self.adata.obs[self.label_key], pd.Categorical) or hasattr(self.adata.obs[self.label_key], 'cat')):
                 self.adata.obs[self.label_key] = list(self.adata.obs[self.label_key])
                 self.adata.obs[self.label_key] = pd.Categorical(self.adata.obs[self.label_key].fillna(self.unlabel_key))
 
             self.label_category = pd.Categorical(self.adata.obs[self.label_key])
             self.label_category_summary = dict(Counter(list(filter(lambda x: x != self.unlabel_key, self.label_category))))
+
             for k in self.label_category.categories:
                 if k not in self.label_category_summary.keys() and k != self.unlabel_key:
                     self.label_category_summary[k] = 0
@@ -1272,7 +1285,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         ))
 
         if return_pandas:
-            predictions_argmax = pd.DataFrame(predictions_argmax)
+            predictions_argmax = pd.DataFrame(predictions_argmax, index=self.adata.obs.index)
             predictions_argmax.columns = [self.label_key]
             return predictions_argmax
 
@@ -1287,7 +1300,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     additional_predictions_result_argmax[i].numpy()
                 ))
             if return_pandas:
-                additional_predictions_result_argmax = pd.DataFrame(additional_predictions_result_argmax).T
+                additional_predictions_result_argmax = pd.DataFrame(
+                    additional_predictions_result_argmax,
+                    columns = self.adata.obs.index
+                ).T
                 additional_predictions_result_argmax.columns = self.additional_label_keys
                 return pd.concat([predictions_argmax, additional_predictions_result_argmax], axis=1)
 

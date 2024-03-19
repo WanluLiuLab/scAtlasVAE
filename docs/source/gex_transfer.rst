@@ -43,14 +43,14 @@ If not, please see the `Retraining Multi-source GEX Data <gex_retraining.html>`_
   :linenos:
 
   scatlasvae.model.scAtlasVAE.setup_anndata(query_adata, "model.pt")
-  model_state_dict = torch.load("model.pt")
   query_model = scatlasvae.model.scAtlasVAE(
     adata=query_adata,
     batch_key="sample_name", 
+    label_key="cell_type",
     batch_embedding='embedding', 
     device='cuda:0', 
     batch_hidden_dim=8,
-    pretrained_state_dict=model_state_dict['model_state_dict'],
+    pretrained_state_dict="model.pt",
   )
   predictions = query_model.predict_labels(
     return_pandas=True,
@@ -59,7 +59,7 @@ If not, please see the `Retraining Multi-source GEX Data <gex_retraining.html>`_
   predictions.columns = list(map(lambda x: 'predicted_'+x, predictions.columns))
   query_adata.obs = query_adata.obs.join(predictions)
 
-  predictions_logits = query_model.predict_batch(return_pandas=False)
+  predictions_logits = query_model.predict_labels(return_pandas=False)
   query_adata.uns['predictions_logits'] = predictions_logits
 
   count, fig = scatlasvae.ut.cell_type_alignment(

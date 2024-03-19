@@ -448,10 +448,18 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 adata.obs[batch_key] = unlabel_key
                 adata.obs[batch_key] = pd.Categorical(
                     list(adata.obs[batch_key] ),
+                    categories=pd.Categorical(
+                        state_dict["batch_category"].categories
+                    ).add_categories(unlabel_key).categories
                 )
             else:
                 adata.obs[batch_key] = pd.Categorical(
-                    list(adata.obs[batch_key] ),
+                    list(pd.Series(list(adata.obs[batch_key])).fillna(unlabel_key)),
+                    categories=pd.Categorical(
+                        state_dict["batch_category"].categories
+                    ).add_categories(
+                        list(np.unique(pd.Series(list(adata.obs[batch_key])).fillna(unlabel_key)))
+                    )
                 )
 
 
@@ -473,9 +481,9 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     list( adata.obs[label_key].fillna(unlabel_key) ),
                     categories = pd.Categorical(
                         state_dict["label_category"].categories
-                    ).add_categories(unlabel_key).categories if \
-                    unlabel_key not in state_dict["label_category"].categories else \
-                    state_dict["label_category"].categories
+                    ).add_categories(
+                        list(np.unique(pd.Series(list(adata.obs[label_key])).fillna(unlabel_key)))
+                    )
                 )
 
         if state_dict["additional_batch_category"] is not None:
@@ -485,12 +493,20 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     adata.obs[k] = unlabel_key
                     adata.obs[k] = pd.Categorical(
                         list( adata.obs[k] ),
+                        categories = pd.Categorical(
+                            state_dict["additional_batch_category"][i].categories
+                        ).add_categories(unlabel_key).categories
                     )
 
                 else:
                     adata.obs[k] = list(adata.obs[k])
                     adata.obs[k] = pd.Categorical(
-                        list( adata.obs[k] ),
+                        list(pd.Series(list(adata.obs[k])).fillna(unlabel_key)),
+                        categories = pd.Categorical(
+                            state_dict["additional_batch_category"][i].categories
+                        ).add_categories(
+                            list(np.unique(pd.Series(list(adata.obs[k])).fillna(unlabel_key)))
+                        )
                     )
 
         if state_dict["additional_label_category"] is not None:
@@ -502,9 +518,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         list(adata.obs[k] ),
                         categories = pd.Categorical(
                             state_dict["additional_label_category"][i].categories
-                        ).add_categories(unlabel_key).categories if \
-                        unlabel_key not in state_dict["additional_label_category"][i].categories else \
-                        state_dict["additional_label_category"][i].categories
+                        ).add_categories(unlabel_key).categories
                     )
                 else:
                     adata.obs[k] = list(adata.obs[k])
@@ -512,9 +526,9 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         list(adata.obs[k].fillna(unlabel_key) ),
                         categories= pd.Categorical(
                             state_dict["additional_label_category"][i].categories
-                        ).add_categories(unlabel_key).categories if \
-                        unlabel_key not in state_dict["additional_label_category"][i].categories else \
-                        state_dict["additional_label_category"][i].categories
+                        ).add_categories(
+                            list(np.unique(pd.Series(list(adata.obs[k])).fillna(unlabel_key)))
+                        )
                     )
 
         return adata

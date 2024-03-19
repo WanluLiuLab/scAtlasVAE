@@ -101,7 +101,6 @@ Training the VAE model using multiple batch keys and mutiple label keys
   vae_model = scatlasvae.model.scAtlasVAE(
     adata=adata,
     batch_key=["sample_name", "study_name"],
-    additional_batch_keys=['study_name'],
     label_key=["cell_type_1","cell_type_2"],
     batch_embedding='embedding', 
     device='cuda:0', 

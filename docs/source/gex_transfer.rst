@@ -26,9 +26,10 @@ To transfer the GEX data to previously established reference, we first need to b
   reference_model = scatlasvae.model.scAtlasVAE(
     adata=reference_adata,
     batch_key="sample_name", 
+    label_key="cell_type",
     batch_embedding='embedding', 
     device='cuda:0', 
-    batch_hidden_dim=64
+    batch_hidden_dim=8
   )
 
   reference_model.fit()
@@ -48,7 +49,7 @@ If not, please see the `Retraining Multi-source GEX Data <gex_retraining.html>`_
     batch_key="sample_name", 
     batch_embedding='embedding', 
     device='cuda:0', 
-    batch_hidden_dim=64,
+    batch_hidden_dim=8,
     pretrained_state_dict=model_state_dict['model_state_dict'],
   )
   predictions = query_model.predict_labels(
@@ -120,7 +121,7 @@ guaranteed to be the same as the model trained on the reference dataset alone.
     batch_embedding='embedding', 
     label_key="cell_type",
     device='cuda:0', 
-    batch_hidden_dim=64
+    batch_hidden_dim=8
   )
 
   predictions = model.predict_labels(

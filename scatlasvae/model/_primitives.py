@@ -347,7 +347,36 @@ class MMDLayerBase:
                             zs[i], zs[j], dim=-1
                         ) / len(zs)
         return loss
-    
+
+    def hierarchical_mmd_loss_1(
+        self, 
+        z: torch.Tensor, 
+        cat: np.array, 
+        hierarchical_weight: Iterable[float]
+    ) -> torch.Tensor:
+        if len(cat.shape) <= 1:
+            raise ValueError("Illegal category array")
+        if len(z) != cat.shape[0]:
+            raise ValueError("Dimension of z {} should be equal to dimension of category {}".format(len(z), cat.shape[0]))
+        if len(hierarchical_weight) != cat.shape[1]:
+            raise ValueError("Dimension of hierarchical_weight {} should be equal to dimension of category {}".format(len(hierarchical_weight), cat.shape[1]))
+
+        if cat.shape[1] < 2:
+            cat = cat.flatten()
+            return self.MMDLoss(z, cat)
+        loss = 0
+        zs = []
+        for i in np.unique(cat[:, 0]):
+            idx = list(map(lambda t:t[0], filter(lambda x:x[1] == i, enumerate(cat[:,0]))))
+            loss += self.HierarchicalMMDLoss(z[idx], cat[idx,1:], hierarchical_weight[1:])
+            zs.append(z[idx])
+        for i in range(len(np.unique(cat[:,0]))):
+            for j in range(i+1, len(np.unique(cat[:,0]))):
+                loss += LossFunction.mmd_loss(
+                    zs[i], zs[j]
+                )
+        return loss
+
     def hierarchical_mmd_loss_2(self, 
         z: torch.Tensor, 
         cat1: np.array, 

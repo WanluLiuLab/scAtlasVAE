@@ -1298,9 +1298,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             predictions_argmax.detach().cpu().numpy()
         ))
 
-        if return_pandas:
-            predictions_argmax = pd.DataFrame(predictions_argmax, index=self.adata.obs.index)
-            predictions_argmax.columns = [self.label_key]
+        predictions_argmax = pd.DataFrame(predictions_argmax, index=self.adata.obs.index)
+        predictions_argmax.columns = [self.label_key]
+        
+        if return_pandas and self.n_additional_label is None:
             return predictions_argmax
 
         if self.n_additional_label is not None:

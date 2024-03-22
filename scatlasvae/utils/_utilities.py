@@ -101,8 +101,12 @@ def random_subset_by_key_fast(adata, key, n):
     all_indices = np.hstack(all_indices)
     return adata[all_indices]
 
+
 def exists(x):
-    return x != None
+    return x is not None
+
+def absent(x):
+    return x is None
 
 
 def print_version():

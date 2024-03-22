@@ -23,7 +23,8 @@ setuptools.setup(
     ]),
     install_requires=[
         'anndata==0.8.0',
-        'numpy==1.20.3',
+        'numba==0.5.1',
+        'numpy==1.21.6',
         'scanpy==1.8.1',
         'scikit-learn==0.24.1',
         'matplotlib==3.3.4',
@@ -33,7 +34,9 @@ setuptools.setup(
         'scirpy==0.10.1',
         'pandas==1.4.2',
         'tabulate==0.8.9',
-        'umap-learn',
+        'umap-learn==0.5.1',
+        'plotly==5.10.0',
+
     ],
     dependency_links=['https://download.pytorch.org/whl/cu117'],
     include_package_data=False,

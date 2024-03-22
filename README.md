@@ -11,7 +11,15 @@ scAtlasVAE is a method for rapid atlas-level integration of large-scale scRNA-se
 
 ## Installation
 
-### Using PyPI
+### Create a new environment
+
+```shell
+# This will create a new environment named scatlasvae
+conda env create -f environment.yml 
+conda activate scatlasvae
+```
+
+### Installing via PyPI
 
 ```shell
 pip3 install scatlasvae
@@ -44,3 +52,10 @@ vae_model.fit()
 ```
 
 See complete usage guidance at [Integration tutorial](https://scatlasvae.readthedocs.io/en/latest/gex_integration.html)
+
+## Change Log
+
+### 1.0.2 (2024-03-21)
+
+- Bug fixed for transfer learning
+- Specify the version of several dependencies, including `umap-learn`, `numba`, and `numpy`.

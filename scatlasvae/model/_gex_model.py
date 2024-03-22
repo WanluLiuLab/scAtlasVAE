@@ -947,21 +947,22 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     batch_index.detach().cpu().numpy(),
                     dim=1
                 )
+                print(mmd_loss)
             elif self.mmd_key == 'additional_batch':
                 for i in range(len(self.additional_batch_keys)):
-                    mmd_loss_st += self.mmd_loss(
+                    mmd_loss += self.mmd_loss(
                         H['q_mu'], 
                         additional_batch_index[i].detach().cpu().numpy(),
                         dim=1
                     )
             elif self.mmd_key == 'both':
-                mmd_loss_st = self.mmd_loss(
+                mmd_loss = self.mmd_loss(
                     H['q_mu'], 
                     batch_index.detach().cpu().numpy(),
                     dim=1
                 )
                 for i in range(len(self.additional_batch_keys)):
-                    mmd_loss_st += self.hierarchical_mmd_loss_2(
+                    mmd_loss += self.hierarchical_mmd_loss_2(
                         H['q_mu'], 
                         batch_index.detach().cpu().numpy(),
                         additional_batch_index[i].detach().cpu().numpy(),

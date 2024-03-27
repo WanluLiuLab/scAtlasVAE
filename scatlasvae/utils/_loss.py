@@ -73,16 +73,16 @@ class LossFunction:
             x:         torch.tensor, 
             reduction: str = "sum"):
         """
-        The reconstruction error in the form of mse
+        The error in the form of bce
         """
-        return F.binary_cross_entropy(recon_x, x)
+        return F.binary_cross_entropy(recon_x, x, reduction=reduction)
 
     @staticmethod
     def vae_mse(recon_x: torch.tensor, 
                 x:       torch.tensor, 
                 mu:      torch.tensor, 
                 var:     torch.tensor, 
-                kld_weight: float = 0.5):
+        ):
         """
         The KL-divergence of the latent probability z
         KL(q || p) = -∫ q(z) log [ p(z) / q(z) ] 

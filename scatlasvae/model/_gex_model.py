@@ -108,7 +108,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
        use_layer_norm: bool = False,
        batch_hidden_dim: int = 8,
        batch_embedding: Literal["embedding", "onehot"] = "embedding",
-       reconstruction_method: Literal['mse', 'zg', 'zinb'] = 'zinb',
+       reconstruction_method: Literal['mse', 'zg', 'zinb', 'nb'] = 'zinb',
        constrain_n_label: bool = True,
        constrain_n_batch: bool = True,
        constrain_latent_method: Literal['mse', 'normal'] = 'mse',
@@ -292,7 +292,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             nn.Linear(self.n_hidden, self.in_dim),
             nn.Softmax(dim=-1)
         )
-        self.px_rna_dropout_decoder = nn.Linear(self.n_hidden, self.in_dim)
+        self.px_rna_dropout_decoder = Linear(self.n_hidden, self.in_dim, init='final')
 
         if self.n_label > 0:
             self.fc = nn.Sequential(
@@ -779,7 +779,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         # if batch_index is not None and self.inject_batch:
         #    X = torch.hstack([X, batch_index])
         libsize = torch.log(X.sum(1))
-        if self.reconstruction_method == 'zinb':
+        if self.reconstruction_method == 'zinb' or self.reconstruction_method == 'nb':
             if self.total_variational:
                 X = self._normalize_data(X, after=1e4, copy=True)
             if self.log_variational:
@@ -842,7 +842,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             px_rna_rate = self.px_rate
 
         px_rna_dropout = self.px_rna_dropout_decoder(px)  ## In logits
-
+        
         R = dict(
             h = h,
             px = px,
@@ -883,6 +883,13 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 gate_logits = R['px_rna_dropout'],
                 reduction = reduction
             )
+        elif self.reconstruction_method == 'nb':
+            reconstruction_loss = LossFunction.nb_reconstruction_loss(
+                X,
+                mu = R['px_rna_scale'],
+                theta = R['px_rna_rate'].exp(),
+                reduction = reduction
+            )
         elif self.reconstruction_method == 'zg':
             reconstruction_loss = LossFunction.zi_gaussian_reconstruction_loss(
                 X,
@@ -899,6 +906,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 R['px_rna_scale'],
                 reduction=reduction
             )
+        else:
+            raise ValueError(f"reconstruction_method {self.reconstruction_method} is not supported")
 
         if self.n_label > 0:
             criterion = nn.CrossEntropyLoss(weight=self.label_category_weight)
@@ -947,7 +956,6 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     batch_index.detach().cpu().numpy(),
                     dim=1
                 )
-                print(mmd_loss)
             elif self.mmd_key == 'additional_batch':
                 for i in range(len(self.additional_batch_keys)):
                     mmd_loss += self.mmd_loss(
@@ -1035,6 +1043,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         kl_weight: float = 1.,
         pred_weight: float = 1.,
         mmd_weight: float = 1.,
+        gate_weight: float = 1.,
         constrain_weight: float = 1.,
         optimizer_parameters: Iterable = None,
         validation_split: float = .2,
@@ -1122,6 +1131,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         epoch_kldiv_loss_list = []
         epoch_prediction_loss_list = []
         epoch_mmd_loss_list = []
+        epoch_gate_loss_list = []
 
 
         for epoch in range(1, max_epoch+1):
@@ -1132,6 +1142,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             epoch_kldiv_loss = 0
             epoch_prediction_loss = 0
             epoch_mmd_loss = 0
+            epoch_gate_loss = 0
+
             X_train, X_test = self.as_dataloader(
                 n_per_batch=n_per_batch,
                 train_test_split = True,
@@ -1139,6 +1151,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 random_seed=random_seed,
                 subset_indices=subset_indices
             )
+            
             if self.n_label > 0 and epoch+1 == max_epoch - pred_last_n_epoch:
                 mt("saving transcriptome only state dict")
                 self.gene_only_state_dict = deepcopy(self.state_dict())
@@ -1166,19 +1179,24 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 kldiv_loss = kl_weight * L['kldiv_loss']
                 mmd_loss = mmd_weight * L['mmd_loss']
 
+                avg_gate_loss = gate_weight * torch.sigmoid(R['px_rna_dropout']).sum(dim=1).mean()
+
                 avg_reconstruction_loss = reconstruction_loss.sum()  / n_per_batch
                 avg_kldiv_loss = kldiv_loss.sum()  / n_per_batch
                 avg_mmd_loss = mmd_loss / n_per_batch
 
                 epoch_reconstruction_loss += avg_reconstruction_loss.item()
                 epoch_kldiv_loss += avg_kldiv_loss.item()
+                epoch_mmd_loss += avg_mmd_loss.item()
+                epoch_gate_loss += avg_gate_loss.item()
+                
                 if self.n_label > 0:
                     epoch_prediction_loss += prediction_loss.sum().item()
 
                 if epoch > max_epoch - pred_last_n_epoch:
-                    loss = avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss + (prediction_loss.sum() + additional_prediction_loss.sum()) / (len(self.n_additional_label) if self.n_additional_label is not None else 0 + 1)
+                    loss = avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss + (prediction_loss.sum() + additional_prediction_loss.sum()) / (len(self.n_additional_label) if self.n_additional_label is not None else 0 + 1) + avg_gate_loss
                 else:
-                    loss = avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss
+                    loss = avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss + avg_gate_loss
 
                 if self.constrain_latent_embedding:
                     loss += constrain_weight * L['latent_constrain_loss']
@@ -1208,6 +1226,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             epoch_kldiv_loss_list.append(epoch_kldiv_loss)
             epoch_prediction_loss_list.append(epoch_prediction_loss)
             epoch_mmd_loss_list.append(epoch_mmd_loss)
+            epoch_gate_loss_list.append(epoch_gate_loss)
             pbar.update(1)
             if n_epochs_kl_warmup:
                 kl_weight = min( kl_weight + kl_warmup_gradient, kl_weight_max)
@@ -1222,7 +1241,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             epoch_reconstruction_loss_list=epoch_reconstruction_loss_list,
             epoch_kldiv_loss_list=epoch_kldiv_loss_list,
             epoch_prediction_loss_list=epoch_prediction_loss_list,
-            epoch_mmd_loss_list=epoch_mmd_loss_list
+            epoch_mmd_loss_list=epoch_mmd_loss_list,
+            epoch_gate_loss_list=epoch_gate_loss_list
         )
     
 

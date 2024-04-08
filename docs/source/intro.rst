@@ -8,10 +8,13 @@ Installation
 
 Install via PyPI:
 
+
 .. code-block:: bash
   :linenos:
-
-    pip install scAtlasVAE
+    # Install the cuda enabled version
+    pip install scatlasvae[gpu]
+    # Install the cpu version
+    pip install scatlasvae[cpu]
 
 Install from source:
 

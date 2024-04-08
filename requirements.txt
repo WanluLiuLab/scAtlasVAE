@@ -2,7 +2,6 @@ sphinx>=1.4
 sphinx_rtd_theme
 ipykernel
 nbsphinx
-labw_utils==1.0.3
 anndata==0.8.0
 scanpy==1.8.1
 einops==0.4.1 
@@ -13,7 +12,7 @@ torchvision==0.14.1
 torchaudio==0.13.1
 pandas==1.4.2
 numba==0.57.1
-numpy==1.20.3
+numpy==1.21.6
 matplotlib==3.5.2
 scikit-learn==0.24.1 
 scirpy==0.10.1

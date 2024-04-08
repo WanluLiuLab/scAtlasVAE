@@ -21,9 +21,16 @@ conda activate scatlasvae
 
 ### Installing via PyPI
 
+If you are using GPU, please install the GPU version of scAtlasVAE.
 ```shell
-pip3 install scatlasvae
+pip3 install scatlasvae[gpu]
 ```
+
+If you are using CPU, please install the CPU version of scAtlasVAE.
+```shell
+pip3 install scatlasvae[cpu]
+```
+
 
 ### Install PyTorch 
 
@@ -54,6 +61,11 @@ vae_model.fit()
 See complete usage guidance at [Integration tutorial](https://scatlasvae.readthedocs.io/en/latest/gex_integration.html)
 
 ## Change Log
+
+### 1.0.3a2 (2024-04-08)
+
+- update the enviorment configuration and dependencies list
+- update the model initialization for the scAtlasVAE model
 
 ### 1.0.2 (2024-03-21)
 

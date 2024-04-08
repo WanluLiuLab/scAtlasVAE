@@ -4,6 +4,11 @@ sphinx-hoverxref
 sphinx-express
 ipykernel
 nbsphinx
+sphinx-autodoc-typehints
+nbsphinx-link
+sphinx_copybutton
+ipykernel
+nbsphinx
 plotly==5.10.0
 anndata==0.8.0
 scikit-learn==0.24.1 
@@ -20,3 +25,4 @@ scanpy==1.8.1
 scikit-learn==0.24.1 
 scirpy==0.10.1
 tabulate==0.8.9
+jinja2==3.0.3

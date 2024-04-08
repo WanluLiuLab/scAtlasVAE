@@ -54,6 +54,7 @@ Key functionality
 
 Task 1: Building reference atlas from scatch
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 .. image:: _static/imgs/scAtlasVAE_1.png 
   :width: 800
   :alt: Task1
@@ -65,20 +66,23 @@ See :doc:`gex_integration` for more details.`
 
 Task 2: Query-to-reference mapping with cell type annotation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 .. image:: _static/imgs/scAtlasVAE_2.png 
   :width: 800
   :alt: Task2
 
 scAtlasVAE can be used to map query dataset to reference atlas with cell type annotation. 
 The query dataset can be used for downstream tasks such as multi-atlas integration.
- See :doc:`gex_transfer` for more details.
+See :doc:`gex_transfer` for more details.
 
 
 Task 3: Multi-atlas integration with cell type alignment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 .. image:: _static/imgs/scAtlasVAE_3.png 
   :width: 390
   :alt: Task3
+  
 
 scAtlasVAE can be used to build reference atlas without prior cell type annotation. The reference atlas can be used for downstream tasks such as query-to-reference mapping and multi-atlas integration. 
 See :doc:`gex_integration` for more details.

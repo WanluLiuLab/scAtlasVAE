@@ -21,9 +21,9 @@ HSAP_GENE_ORDER = MODULE_PATH / '../data/refdata/human/hsap_gene_order.txt'
 def infercnv_R(
     adata:sc.AnnData,
     obs_key:str,
+    r_path: str,
     ref_group_names: Optional[List[str]] = None,
     platform: Literal['10x', 'smartseq2'] = '10x',
-    r_path: str = "/Users/snow/.conda/envs/r413/bin/Rscript", 
 ):
     if len(np.unique(adata.obs.index)) != adata.shape[0]:
         adata.obs_names_make_unique()

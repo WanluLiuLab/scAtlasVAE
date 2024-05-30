@@ -1,7 +1,7 @@
 Integrating Multi-source Gene Expression (GEX)
 ==============================================
 
-This is a repository for the code for integrating multi-source gene expression (GEX) data using the VAE model from the TCR-DeepInsight package.
+This is a repository for the code for integrating multi-source gene expression (GEX) data using the :py:class:`scatlasvae.model.scAtlasVAE` from the scAtlasVAE package.
 
 
 .. code-block:: python
@@ -11,7 +11,7 @@ This is a repository for the code for integrating multi-source gene expression (
 
   adata = scatlasvae.read_h5ad("path/to/adata.h5ad")
 
-The `adata` is a :class:`anndata.AnnData` object with raw GEX count matrix stored in adata.X.
+The `adata` is a :py:class:`anndata.AnnData` object with raw GEX count matrix stored in adata.X.
 
 
 Training the VAE model using batch key

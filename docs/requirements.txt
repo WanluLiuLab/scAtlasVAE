@@ -5,8 +5,13 @@ sphinx-express
 ipykernel
 nbsphinx
 sphinx-autodoc-typehints
+sphinxext-opengraph
 nbsphinx-link
+sphinx_book_theme
 sphinx_copybutton
+sphinx_design
+scanpydoc>=0.4.5
+sphinx-autoapi
 ipykernel
 nbsphinx
 plotly==5.10.0

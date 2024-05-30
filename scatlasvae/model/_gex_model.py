@@ -57,7 +57,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     :param n_additional_batch: Optional[Iterable[int]]. Number of categorical covariate. Default: None
     :param batch_key: str. Batch key in adata.obs. Default: None
     :param label_key: str. Label key in adata.obs. Default: None
-    :param dispersion: Literal["gene", "gene-batch", "gene-cell"]. Dispersion method. Default: "gene-cell"
+    :param dispersion: Literal["gene", "gene-batch", "gene-cell"]. Dispersion modeling method. Default: "gene-cell"
+    :param rna_dropout: Literal["gene", "cell"]. RNA dropout modeling method. Default: "gene". 
     :param log_variational: bool. If True, log the variational distribution. Default: True
     :param total_variational: bool. If True, normalize the counts with library size. Default: False
     :param bias: bool. If True, use bias in the linear layer. Default: True
@@ -96,11 +97,12 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
        n_label: int = 0,
        n_additional_batch: Optional[Iterable[int]] = None,
        n_additional_label: Optional[Iterable[int]] = None,
-       batch_key = None,
-       additional_batch_keys = None, #TODO: deprecate in the future
-       label_key = None,
-       additional_label_keys = None, #TODO: deprecate in the future
+       batch_key: Union[str, Iterable[str]] = None,
+       additional_batch_keys: Iterable[str] = None, #TODO: deprecate in the future
+       label_key: Union[str, Iterable[str]] = None,
+       additional_label_keys: Iterable[str] = None, #TODO: deprecate in the future
        dispersion:  Literal["gene", "gene-batch", "gene-cell"] = "gene-cell",
+       rna_dropout: Literal["gene", "cell"] = "gene",
        log_variational: bool = True,
        total_variational: bool = False,
        bias: bool = True,
@@ -135,6 +137,12 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             mw("adata.X is not of type np.int32. \n" + \
                 " "*40 + "\tCheck whether you are using raw count matrix.")
             # adata.X = adata.X.astype(np.int32)
+        if adata.is_view:
+            mw("adata is a view of another AnnData object. \n" + \
+                " "*40 + "This may cause slower training. \n" + \
+                " "*40 + "Use adata=adata.copy() to create a new AnnData object."
+            )
+
 
         self.adata = adata
         self.in_dim = adata.shape[1] if adata else -1
@@ -159,6 +167,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             self.additional_batch_keys = None if isinstance(batch_key, str) or (isinstance(batch_key, Iterable) and len(batch_key) == 1) else batch_key[1:] if batch_key is not None else None
         else: 
             #TODO: deprecate in the future
+            mw("additional_batch_keys is going to be deprecated. Use batch_key as a List instead.")
             self.additional_batch_keys = additional_batch_keys
 
         self.additional_batch_category = None 
@@ -168,6 +177,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             self.additional_label_keys = None if isinstance(label_key, str) or (isinstance(label_key, Iterable) and len(label_key) == 1) else label_key[1:] if label_key is not None else None
         else:
             #TODO: deprecate in the future
+            mw("additional_label_keys is going to be deprecated. Use label_key as a List instead.")
             self.additional_label_keys = additional_label_keys
             
         self.additional_label_category = None 
@@ -209,6 +219,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         self.encode_libsize = encode_libsize
         self.decode_libsize = decode_libsize
         self.dispersion = dispersion
+        self.rna_dropout = rna_dropout
 
         
 
@@ -221,7 +232,6 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             activation_fn  = activation_fn,
             device         = device
         )
-
 
 
         #############################
@@ -302,7 +312,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             nn.Linear(self.n_hidden, self.in_dim),
             nn.Softmax(dim=-1)
         )
-        self.px_rna_dropout_decoder = Linear(self.n_hidden, self.in_dim, init='final')
+
+        if self.rna_dropout == "gene":
+            self.px_rna_dropout_decoder = Linear(self.n_hidden, self.in_dim, init='final')
+        elif self.rna_dropout == "cell":
+            self.px_rna_dropout_decoder = Linear(self.n_hidden, 1, init='final')
 
         if self.n_label > 0:
             self.fc = nn.Sequential(

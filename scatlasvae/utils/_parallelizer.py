@@ -11,6 +11,16 @@ import numpy as np
 from scipy.sparse import issparse
 import pandas as pd 
 
+from tqdm.contrib.concurrent import process_map, thread_map
+from tqdm.asyncio import tqdm as asyn_tqdm
+from multiprocessing import cpu_count
+import itertools 
+import scipy
+from scipy.sparse import csr_matrix
+from typing import Sequence, Tuple, Union, Optional, Callable
+# from ..utils._compat import Literal
+
+
 class Parallelizer:
     def __init__(self, n_jobs:int):
         self.n_jobs = self.get_n_jobs(n_jobs=n_jobs)
@@ -131,7 +141,7 @@ class Parallelizer:
 
             return res if reduce_func is None else reduce_func(res)
         return wrapper
-    
+
 def parallel_leiden_computation(
     X: np.ndarray,
     n_neighbors_list: Iterable[int] = (30, 50, 70, 90),
@@ -162,3 +172,141 @@ def parallel_leiden_computation(
         columns=list(map(lambda x: list(x.keys())[0], result))
     )
 
+
+class ParallelPairwiseCalculator:
+    def __init__(self, 
+        pairwise_func: Callable,
+        n_jobs=None, 
+        block_size: int = 50,
+        backend: str = "thread",
+        cutoff: float = 0.0,
+        dtype = np.uint8
+    ):
+        self.pairwise_func = pairwise_func
+        self.n_jobs = n_jobs if n_jobs else cpu_count()
+        self.block_size = block_size
+        self.backend = backend
+        self.cutoff = cutoff
+        self.DTYPE = dtype
+        
+    @staticmethod
+    def _block_iter(
+        seqs1: Sequence[str],
+        seqs2: Optional[Sequence[str]] = None,
+        block_size: Optional[int] = 50,
+    ):
+        """Iterate over sequences in blocks.
+
+        Parameters
+        ----------
+        seqs1
+            array containing (unique) sequences
+        seqs2
+            array containing other sequences. If `None` compute
+            the square matrix of `seqs1` and iterate over the upper triangle (including
+            the diagonal) only.
+        block_size
+            side length of a block (will have `block_size ** 2` elements.)
+
+        Yields
+        ------
+        seqs1
+            subset of length `block_size` of seqs1
+        seqs2
+            subset of length `block_size` of seqs2. If seqs2 is None, this will
+            be `None` if the block is on the diagonal, or a subset of seqs1 otherwise.
+        origin
+            (row, col) coordinates of the origin of the block.
+        """
+        square_mat = seqs2 is None
+        if square_mat:
+            seqs2 = seqs1
+        for row in range(0, len(seqs1), block_size):
+            start_col = row if square_mat else 0
+            for col in range(start_col, len(seqs2), block_size):
+                if row == col and square_mat:
+                    # block on the diagonal.
+                    # yield None for seqs2 to indicate that we only want the upper
+                    # diagonal.
+                    yield seqs1[row : row + block_size], None, (row, row)
+                else:
+                    yield seqs1[row : row + block_size], seqs2[
+                        col : col + block_size
+                    ], (row, col)
+
+    def _calculate(self, seqs1, seqs2, origin):
+        origin_row, origin_col = origin
+        if seqs2 is not None:
+            # compute the full matrix
+            coord_iterator = itertools.product(enumerate(seqs1), enumerate(seqs2))
+        else:
+            # compute only upper triangle in this case
+            coord_iterator = itertools.combinations_with_replacement(
+                enumerate(seqs1), r=2
+            )
+
+        result = []
+        for (row, s1), (col, s2) in coord_iterator:
+            d = self.pairwise_func(s1, s2)
+            if self.cutoff < 0 or d <= self.cutoff:
+                result.append((d + 1, origin_row + row, origin_col + col))
+
+        return result
+
+    def calculate(self, seqs: Sequence[str], seqs2: Optional[Sequence[str]] = None):
+        blocks = list(self._block_iter(seqs, seqs2, self.block_size))
+        if self.backend == "thread":
+            block_results = thread_map(
+                self._calculate,
+                *zip(*blocks),
+                max_workers=self.n_jobs if self.n_jobs is not None else cpu_count(),
+                chunksize=50,
+                tqdm_class=asyn_tqdm,
+                total=len(blocks),
+            )
+        elif self.backend == "process":
+            block_results = process_map(
+                self._calculate,
+                *zip(*blocks),
+                max_workers=self.n_jobs if self.n_jobs is not None else cpu_count(),
+                chunksize=50,
+                tqdm_class=asyn_tqdm,
+                total=len(blocks),
+            )
+        else:
+            raise ValueError("Invalid backend. Must be one of 'thread' or 'process'.")
+        try:
+            dists, rows, cols = zip(*itertools.chain(*block_results))
+        except ValueError:
+            # happens when there is no match at all
+            dists, rows, cols = (), (), ()
+
+        shape = (len(seqs), len(seqs2)) if seqs2 is not None else (len(seqs), len(seqs))
+        score_mat = scipy.sparse.coo_matrix(
+            (dists, (rows, cols)), dtype=self.DTYPE, shape=shape
+        )
+        score_mat.eliminate_zeros()
+        score_mat = score_mat.tocsr()
+
+        if seqs2 is None:
+            score_mat = self.squarify(score_mat)
+
+        return score_mat
+
+    @staticmethod
+    def squarify(triangular_matrix: csr_matrix) -> csr_matrix:
+        """Mirror a triangular matrix at the diagonal to make it a square matrix.
+
+        The input matrix *must* be upper triangular to begin with, otherwise
+        the results will be incorrect. No guard rails!
+        """
+        assert (
+            triangular_matrix.shape[0] == triangular_matrix.shape[1]
+        ), "needs to be square matrix"
+        # The matrix is already upper diagonal. Use the transpose method, see
+        # https://stackoverflow.com/a/58806735/2340703.
+        return (
+            triangular_matrix
+            + triangular_matrix.T
+            - scipy.sparse.diags(triangular_matrix.diagonal())
+        )

@@ -45,8 +45,8 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
     'hoverxref.extension',
-    "scanpydoc.elegant_typehints",
-    "scanpydoc.autosummary_generate_imported",
+    # "scanpydoc.elegant_typehints",
+    # "scanpydoc.autosummary_generate_imported",
     "sphinx_copybutton",
     "nbsphinx"
 ]

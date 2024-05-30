@@ -58,7 +58,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     :param batch_key: str. Batch key in adata.obs. Default: None
     :param label_key: str. Label key in adata.obs. Default: None
     :param dispersion: Literal["gene", "gene-batch", "gene-cell"]. Dispersion modeling method. Default: "gene-cell"
-    :param rna_dropout: Literal["gene", "cell"]. RNA dropout modeling method. Default: "gene". 
+    :param rna_dropout: Literal["gene", "cell"]. RNA dropout modeling method. Default: "gene" models dropout at the gene level. Alternative: "cell" models dropout at the cell level.
     :param log_variational: bool. If True, log the variational distribution. Default: True
     :param total_variational: bool. If True, normalize the counts with library size. Default: False
     :param bias: bool. If True, use bias in the linear layer. Default: True

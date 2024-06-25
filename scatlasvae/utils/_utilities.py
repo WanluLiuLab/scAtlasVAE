@@ -210,3 +210,6 @@ def writeMM(mat, path):
             f.write(str(j+1) + " " + str(i+1) + " " + str(v) + "\n")
             pbar.update(1)
         pbar.close()
+
+def next_unicode_char(char):
+    return chr(ord(char) + 1)

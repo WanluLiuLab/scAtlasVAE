@@ -35,7 +35,7 @@ from ..utils._decorators import typed
 from ..utils._loss import LossFunction
 from ..utils._logger import mt, mw, Colors, get_tqdm
 
-from ..utils._utilities import random_subset_by_key_fast, euclidean
+from ..utils._utilities import random_subset_by_key_fast, next_unicode_char
 from ..utils._compat import Literal
 from ..tools._umap import umap_alignment
 from ..utils._utilities import get_default_device
@@ -186,8 +186,31 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
         self.n_batch = n_batch
         self.n_label = n_label
+
         self.unlabel_key = unlabel_key
+        # Patch fix for the unlabel_key, since we are using the first unicode character and 
+        # assure that the character is the last unicode character all labels
+        all_label_keys = []
+        if self.label_key is not None and unlabel_key in set(self.adata.obs[self.label_key]):
+            all_label_keys = list(set(self.adata.obs[self.label_key]))
+            all_label_keys.remove(unlabel_key)
+        if self.additional_label_keys is not None:
+            for k in self.additional_label_keys:
+                if unlabel_key in set(self.adata.obs[k]):
+                    all_label_keys += list(set(self.adata.obs[k]))
+                    all_label_keys.remove(unlabel_key)
+        if len(all_label_keys) > 0:
+            last_unicode = sorted(all_label_keys)[-1][0]
+            if ord(last_unicode) > ord(unlabel_key[0]):
+                mw(f"unlabel_key is set to {unlabel_key}")
+                self.unlabel_key = next_unicode_char(last_unicode) + '-' + self.unlabel_key 
+                self.adata.obs[label_key] = self.adata.obs[label_key].replace(unlabel_key, self.unlabel_key)
+                if additional_label_keys is not None:
+                    for k in additional_label_keys:
+                        self.adata.obs[k] = self.adata.obs[k].replace(unlabel_key, self.unlabel_key)
+
         self.new_adata_code = None
+
         self.log_variational = log_variational
         self.total_variational = total_variational
         self.mmd_key = mmd_key
@@ -589,7 +612,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 self.adata.obs[self.label_key] = list(self.adata.obs[self.label_key])
                 self.adata.obs[self.label_key] = pd.Categorical(self.adata.obs[self.label_key].fillna(self.unlabel_key))
 
-            self.label_category = pd.Categorical(self.adata.obs[self.label_key])
+            self.label_category = pd.Categorical(list(self.adata.obs[self.label_key]))
             self.label_category_summary = dict(Counter(list(filter(lambda x: x != self.unlabel_key, self.label_category))))
 
             for k in self.label_category.categories:
@@ -628,9 +651,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         if self.constrain_n_label:
                             mt(f"         setting n_additional_label {e} to {i}")
                             self.n_additional_label[e] = i
+
             self.additional_label_category = [
-                pd.Categorical(self.adata.obs[x]) for x in self.additional_label_keys
+                pd.Categorical(list(self.adata.obs[x])) for x in self.additional_label_keys
             ]
+            
             self.additional_label_category_summary = [dict(Counter(x)) for x in self.additional_label_category]
             for i in range(len(self.additional_label_category_summary)):
                 for k in self.additional_label_category[i].categories:
@@ -1192,7 +1217,13 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         best_state_dict = None
         best_score = 0
         current_score = 0
-        pbar = get_tqdm()(range(max_epoch), desc="Epoch", bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')
+        pbar = get_tqdm()(
+            range(max_epoch), 
+            desc="Epoch", 
+            bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+            position=0, 
+            leave=True
+        )
         loss_record = {
             "epoch_reconstruction_loss": 0,
             "epoch_kldiv_loss": 0,
@@ -1227,7 +1258,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 subset_indices=subset_indices
             )
             
-            if self.n_label > 0 and epoch+1 == max_epoch - pred_last_n_epoch:
+            if self.n_label > 0 and epoch == max_epoch - pred_last_n_epoch:
                 mt("saving transcriptome only state dict")
                 self.gene_only_state_dict = deepcopy(self.state_dict())
                 if  pred_last_n_epoch_fconly:
@@ -1281,8 +1312,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 loss.backward()
                 optimizer.step()
                 pbar.set_postfix({
-                    'reconst': '{:.2e}'.format(loss_record["epoch_reconstruction_loss"]),
-                    'kldiv': '{:.2e}'.format(loss_record["epoch_kldiv_loss"]),
+                    'rec': '{:.2e}'.format(loss_record["epoch_reconstruction_loss"]),
+                    'kl': '{:.2e}'.format(loss_record["epoch_kldiv_loss"]),
                     'pred': '{:.2e}'.format(loss_record["epoch_prediction_loss"]),
                     'mmd': '{:.2e}'.format(loss_record["epoch_mmd_loss"]),
                     'step': f'{b} / {len(X_train)}'
@@ -1291,8 +1322,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             if lr_schedule:
                 scheduler.step(loss_record["epoch_total_loss"])
             pbar.set_postfix({
-                'reconst': '{:.2e}'.format(loss_record["epoch_reconstruction_loss"]),
-                'kldiv': '{:.2e}'.format(loss_record["epoch_kldiv_loss"]),
+                'rec': '{:.2e}'.format(loss_record["epoch_reconstruction_loss"]),
+                'kl': '{:.2e}'.format(loss_record["epoch_kldiv_loss"]),
                 'pred': '{:.2e}'.format(loss_record["epoch_prediction_loss"]),
                 'mmd': '{:.2e}'.format(loss_record["epoch_mmd_loss"]),
             })
@@ -1340,7 +1371,13 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         predictions = []
         additional_predictions = []
         if show_progress:
-            pbar = get_tqdm()(X, desc="Predicting Labels", bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')
+            pbar = get_tqdm()(
+                X, 
+                desc="Predicting Labels", 
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+                position=0, 
+                leave=True
+            )
 
         for x in X:
             x = self._dataset[x.cpu().numpy()]
@@ -1441,7 +1478,13 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         elif isinstance(latent_key, Iterable):
             Zs = [[] for _ in range(len(latent_key))]
         if show_progress:
-            pbar = get_tqdm()(X, desc="Latent Embedding", bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')
+            pbar = get_tqdm()(
+                X, 
+                desc="Latent Embedding", 
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+                position=0, 
+                leave=True
+            )
 
         for x in X:
             X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(x)
@@ -1469,7 +1512,13 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         predictions = []
         additional_predictions = []
         if show_progress:
-            pbar = get_tqdm()(X, desc="Reconstructing gene expression", bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')
+            pbar = get_tqdm()(
+                X, 
+                desc="Reconstructing gene expression", 
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+                position=0, 
+                leave=True
+            )
 
         for x in X:
             X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(x)
@@ -1828,6 +1877,18 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                                 get_k_elements(batch_data, 1),
                                 get_last_k_elements(batch_data, 2),
                             )
+                    else:
+                        if self.constrain_latent_embedding:
+                            X, P, additional_batch_index = (
+                                get_k_elements(batch_data, 0),
+                                get_k_elements(batch_data, 1),
+                                get_k_elements(batch_data, 2),
+                            )
+                        else:
+                            X, additional_batch_index = (
+                                get_k_elements(batch_data, 0),
+                                get_k_elements(batch_data, 1),
+                            )
                     additional_batch_index = list(
                         np.vstack(additional_batch_index).T.astype(int)
                     )
@@ -1887,6 +1948,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                             )
                         else:
                             X, label_index = get_k_elements(batch_data, 0), get_k_elements(batch_data, 1)
+            else:
+                if self.constrain_latent_embedding:
+                    X, P = get_k_elements(batch_data, 0), get_k_elements(batch_data, 1)
+                else:
+                    X = get_k_elements(batch_data, 0)
 
             X = torch.tensor(
                 np.vstack(list(map(lambda x: x.toarray() if issparse(x) else x, X)))

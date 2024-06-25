@@ -20,7 +20,6 @@ from scipy.sparse import csr_matrix
 from typing import Sequence, Tuple, Union, Optional, Callable
 # from ..utils._compat import Literal
 
-
 class Parallelizer:
     def __init__(self, n_jobs:int):
         self.n_jobs = self.get_n_jobs(n_jobs=n_jobs)
@@ -48,16 +47,16 @@ class Parallelizer:
                         f"Finished only `{n_finished} out of `{n_total}` tasks.`"
                     ) from e
                 break
-            assert res in (None, (1, None), 1)  # (None, 1) means only 1 job
+            assert res in (None, (1, None), 1, 0)  # (None, 1) means only 1 job
             if res == (1, None):
                 n_finished += 1
                 if pbar is not None:
                     pbar.update()
-            elif res is None:
+            elif res == 0:
                 n_finished += 1
-            elif pbar is not None:
-                pbar.update()
-
+            elif res == 1:
+                if pbar is not None:
+                    pbar.update()
         if pbar is not None:
             pbar.close()
         
@@ -66,7 +65,7 @@ class Parallelizer:
         map_func: Callable[[Any], Any],
         map_data: Union[Sequence[Any], Iterable[Any]],
         n_split: Optional[int] = None,
-        progress: bool = True,
+        progress: bool = False,
         progress_unit: str = "",
         use_ixs: bool = False,
         backend: str = "loky",
@@ -76,20 +75,23 @@ class Parallelizer:
         if progress:
             try:
                 try:
-                    from tqdm.notebook import tqdm
+                    from tqdm.asyncio import tqdm
                 except ImportError:
                     try:
-                        from tqdm import tqdm_notebook as tqdm
+                        from tqdm.notebook import tqdm
                     except ImportError:
-                        from tqdm import tqdm
-                import ipywidgets  # noqa
+                        try:
+                            from tqdm import tqdm_notebook as tqdm
+                        except ImportError:
+                            from tqdm import tqdm
+                    import ipywidgets  # noqa
             except ImportError:
                 global _msg_shown
                 tqdm = None
 
                 self._msg_shown = True
-            else:
-                tqdm = None
+        else:
+            tqdm = None
 
         col_len = map_data.shape[0] if issparse(map_data) else len(map_data)
 
@@ -118,7 +120,7 @@ class Parallelizer:
 
         def wrapper(*args, **kwargs):
             if pass_queue and progress:
-                pbar = None if tqdm is None else tqdm(total=col_len, unit=progress_unit)
+                pbar = None if tqdm is None else tqdm(total=len(map_data), unit=progress_unit)
                 queue = Manager().Queue()
                 thread = Thread(target=Parallelizer.__update__, args=(pbar, queue, len(map_datas)))
                 thread.start()
@@ -157,15 +159,19 @@ def parallel_leiden_computation(
                 sc.pp.neighbors(adata, n_neighbors=n_neighbors)
                 sc.tl.leiden(adata, resolution=resolution)
                 if queue is not None:
-                    queue.put(None)
+                    queue.put(1)
                 out[(n_neighbors, resolution)] = adata.obs["leiden"].values
+        if queue is not None:
+            queue.put(0)
         return out 
     map_data=[{"X": X, "n_neighbors": n_neighbors, "resolution": resolution} for n_neighbors in n_neighbors_list for resolution in resolution_list]
     p = Parallelizer(n_jobs=min(len(map_data), os.cpu_count()))
     result = p.parallelize(
         map_func=par_func, 
         map_data=map_data, 
-        reduce_func=lambda x: x
+        reduce_func=lambda x: x,
+        progress=True,
+        backend="threading"
     )()
     return pd.DataFrame(
         list(map(lambda x: list(x.values())[0], result)), 

@@ -23,12 +23,12 @@ conda activate scatlasvae
 
 If you are using GPU, please install the GPU version of scAtlasVAE.
 ```shell
-pip3 install scatlasvae[gpu]
+pip3 install "scatlasvae[gpu]"
 ```
 
 If you are using CPU, please install the CPU version of scAtlasVAE.
 ```shell
-pip3 install scatlasvae[cpu]
+pip3 install "scatlasvae[cpu]"
 ```
 
 

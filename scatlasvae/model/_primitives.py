@@ -386,7 +386,7 @@ class MMDLayerBase:
         flavor: Literal['trvae','default'] = 'trvae'
     ) -> torch.Tensor:
         """
-        Hierachical mmd loss with indepdent categories
+        Hierachical mmd loss with independent categories
 
         :param z: torch.Tensor: Latent space
         :param cat1: np.array: Categories

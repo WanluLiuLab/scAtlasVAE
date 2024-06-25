@@ -95,6 +95,10 @@ Training the VAE model using batch key and label key (e.g. `cell_type`)
 Training the VAE model using multiple batch keys and mutiple label keys
 -----------------------------------------------------------------------
 
+When integrating datasets from different atlas with different batch keys and cell type annotations, the `batch_key` and `label_key` can be a list of keys, and value in `label_key` can be 'undefined' if the cell type annotation is not available in the dataset. These information will not be used in the model training.
+
+After training the multi-batch and multi-label model, one can use :py:method:`scatlasvae.ut.cell_type_alignment` to visualize the alignment of cell types.
+
 .. code-block:: python
   :linenos:
   

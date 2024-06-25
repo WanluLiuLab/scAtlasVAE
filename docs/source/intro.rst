@@ -6,15 +6,18 @@ scAtlasVAE is a method for rapid atlas-level integration of large-scale scRNA-se
 Installation
 ------------
 
-Install via PyPI:
 
+Install via PyPI:
 
 .. code-block:: bash
   :linenos:
-    # Install the cuda enabled version
-    pip install "scatlasvae[gpu]"
-    # Install the cpu version
-    pip install "scatlasvae[cpu]"
+
+  # Install the cuda enabled version
+  pip install "scatlasvae[gpu]"
+
+  # Install the cpu version
+  pip install "scatlasvae[cpu]"
+
 
 Install from source:
 
@@ -25,6 +28,7 @@ Install from source:
     cd scAtlasVAE
     pip3 install -r requirements.txt
     python3 setup.py install
+
 
 
 Tutorial 

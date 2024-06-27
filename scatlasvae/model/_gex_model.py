@@ -1238,6 +1238,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         epoch_prediction_loss_list = []
         epoch_mmd_loss_list = []
         epoch_gate_loss_list = []
+        epoch_constraint_loss_list = []
 
 
         for epoch in range(1, max_epoch+1):
@@ -1249,6 +1250,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             epoch_prediction_loss = 0
             epoch_mmd_loss = 0
             epoch_gate_loss = 0
+            epoch_constrain_loss = 0
 
             X_train, X_test = self.as_dataloader(
                 n_per_batch=n_per_batch,
@@ -1306,6 +1308,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
                 if self.constrain_latent_embedding:
                     loss += constrain_weight * L['latent_constrain_loss']
+                    epoch_constrain_loss += L['latent_constrain_loss'].item()
 
                 epoch_total_loss += loss.item()
                 optimizer.zero_grad()
@@ -1333,6 +1336,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             epoch_prediction_loss_list.append(epoch_prediction_loss)
             epoch_mmd_loss_list.append(epoch_mmd_loss)
             epoch_gate_loss_list.append(epoch_gate_loss)
+            epoch_constraint_loss_list.append(epoch_constrain_loss)
             pbar.update(1)
             if n_epochs_kl_warmup:
                 kl_weight = min( kl_weight + kl_warmup_gradient, kl_weight_max)
@@ -1348,7 +1352,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             epoch_kldiv_loss_list=epoch_kldiv_loss_list,
             epoch_prediction_loss_list=epoch_prediction_loss_list,
             epoch_mmd_loss_list=epoch_mmd_loss_list,
-            epoch_gate_loss_list=epoch_gate_loss_list
+            epoch_gate_loss_list=epoch_gate_loss_list,
+            epoch_constraint_loss_list=epoch_constraint_loss_list
         )
     
 

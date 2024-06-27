@@ -30,12 +30,20 @@ Install from source:
     python3 setup.py install
 
 
+PyTorch installation
+~~~~~~~~~~~~~~~~~~~~
+
+- If you have a different CUDA version, you can check for the PyTorch version that is compatible with your CUDA version [here](https://pytorch.org/get-started/previous-versions/).
+- scAtlasVAE has not been tested with MPS backend.
+
 
 Tutorial 
 --------
 
 Basic Usage
 ~~~~~~~~~~~
+
+Integrating scRNA-seq data using :py:class:`scatlasvae.model.scAtlasVAE` is straight forward and compatible with scanpy's anndata.
 
 .. code-block:: python
   :linenos:

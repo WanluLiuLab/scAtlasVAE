@@ -24,18 +24,18 @@ setuptools.setup(
     install_requires=[
         'anndata==0.8.0',
         'numba==0.57.1',
-        'numpy==1.21.6',
+        'numpy=1.21,<1.23',
         'scanpy==1.8.1',
         'scikit-learn==0.24.1',
-        'matplotlib==3.3.4',
-        'einops==0.4.1 ',
+        'matplotlib>=3.3.4',
+        'einops>=0.4.1 ',
         'biopython==1.79',
         'seaborn==0.12.2',
         'scirpy==0.10.1',
         'pandas==1.4.2',
-        'tabulate==0.8.9',
+        'tabulate>=0.8.9',
         'umap-learn==0.5.1',
-        'plotly==5.10.0',
+        'plotly>=5.10.0',
     ],
     extras_require=dict(
         gpu=[

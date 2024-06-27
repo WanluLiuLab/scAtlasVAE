@@ -24,7 +24,7 @@ setuptools.setup(
     install_requires=[
         'anndata==0.8.0',
         'numba==0.57.1',
-        'numpy=1.21,<1.23',
+        'numpy>=1.21,<1.22',
         'scanpy==1.8.1',
         'scikit-learn==0.24.1',
         'matplotlib>=3.3.4',

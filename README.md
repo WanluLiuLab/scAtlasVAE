@@ -62,6 +62,11 @@ See complete usage guidance at [Integration tutorial](https://scatlasvae.readthe
 
 ## Change Log
 
+
+### 1.0.4 (2024-04-08)
+
+- bug fixed for existing problems
+
 ### 1.0.3a2 (2024-04-08)
 
 - update the enviorment configuration and dependencies list

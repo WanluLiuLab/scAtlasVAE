@@ -603,7 +603,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             n_label_ = len(np.unique(list(filter(lambda x: x != self.unlabel_key, pd.Categorical(self.adata.obs[self.label_key]).categories))))
 
             if self.n_label != n_label_:
-                mt(f"warning: the provided n_label={self.n_label} does not match the number of batch in the adata.")
+                mt(f"warning: the provided n_label={self.n_label} does not match the number of label in the adata.")
                 if self.constrain_n_label:
                     mt(f"         setting n_label to {n_label_}")
                     self.n_label = n_label_
@@ -612,7 +612,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 self.adata.obs[self.label_key] = list(self.adata.obs[self.label_key])
                 self.adata.obs[self.label_key] = pd.Categorical(self.adata.obs[self.label_key].fillna(self.unlabel_key))
 
-            self.label_category = pd.Categorical(list(self.adata.obs[self.label_key]))
+            if isinstance(self.adata.obs[self.label_key], pd.Categorical):
+                self.label_category = self.adata.obs[self.label_key]
+            else:
+                self.label_category = pd.Categorical(list(self.adata.obs[self.label_key]))
+
             self.label_category_summary = dict(Counter(list(filter(lambda x: x != self.unlabel_key, self.label_category))))
 
             for k in self.label_category.categories:
@@ -653,7 +657,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                             self.n_additional_label[e] = i
 
             self.additional_label_category = [
-                pd.Categorical(list(self.adata.obs[x])) for x in self.additional_label_keys
+                self.adata.obs[x] if isinstance(self.adata.obs[x],  pd.Categorical) else pd.Categorical(list(self.adata.obs[x]))
+                for x in self.additional_label_keys
             ]
             
             self.additional_label_category_summary = [dict(Counter(x)) for x in self.additional_label_category]

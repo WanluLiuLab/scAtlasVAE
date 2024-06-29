@@ -1431,6 +1431,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
             if show_progress:
                 pbar.update(1)
+
         if show_progress:
             pbar.close()
 
@@ -1457,6 +1458,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     self.additional_label_category[i].categories[x],
                     additional_predictions_result_argmax[i].numpy()
                 ))
+
             if return_pandas:
                 additional_predictions_result_argmax = pd.DataFrame(
                     additional_predictions_result_argmax,

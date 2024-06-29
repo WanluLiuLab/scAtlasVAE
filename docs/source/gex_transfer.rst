@@ -16,12 +16,13 @@ Transfer **without** training query datasets with reference datasets
   query_adata = scatlasvae.read_h5ad("query_adata.h5ad")
 
 The :code:`adata` is a :class:`anndata.AnnData` object with raw GEX count matrix stored in adata.X.
-To transfer the GEX data to previously established reference, we first need to build a VAE model trained on the reference data.
+To transfer the GEX data to previously established reference, we first need to build a supervised VAE model trained on the reference data with 
+cell type information.
 
 .. code-block:: python
   :linenos:
 
-  reference_adata = scatlasvae.read_h5ad("reference_adata.h5d")
+  reference_adata = scatlasvae.read_h5ad("reference_adata.h5ad")
 
   reference_model = scatlasvae.model.scAtlasVAE(
     adata=reference_adata,
@@ -36,7 +37,7 @@ To transfer the GEX data to previously established reference, we first need to b
   reference_model.save_to_disk("model.pt")
 
 
-We need to make sure that the number of genes in the new data is the same as the number of genes in the training data. 
+We need to make sure that the number of genes in the query data is the same as the reference data.
 If not, please see the `Retraining Multi-source GEX Data <gex_retraining.html>`_ tutorial for how to transfer GEX data with different number of genes.
 
 .. code-block:: python

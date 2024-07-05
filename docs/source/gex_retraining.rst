@@ -41,13 +41,13 @@ The :code:`X_gex` is the VAE embedding of the GEX data obtained from previous tr
   vae_model.save_to_disk("retrained_vae_model.pt")
 
   # Get the VAE embedding of the query dataset
-  vae_model = tdi.model.VAEModel(
+  vae_model = scatlasvae.model.VAEModel(
     adata=query,
     batch_key="sample_name", 
     batch_embedding='embedding', 
     device='cuda:0', 
     batch_hidden_dim=10,
-    pretrained_state_dict=torch.load("retrained_vae_model.pt")['model_state_dict']
+    pretrained_state_dict="retrained_vae_model.pt"
   )
   query_adata.obsm['X_gex'] = vae_model.get_latent_embedding()
 

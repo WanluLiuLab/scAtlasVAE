@@ -90,7 +90,7 @@ Mapping the UMAP representation to the reference
   query_adata.obsm['X_umap'] = scatlasvae.tl.umap_alignment(
     reference_adata.obsm['X_gex'],
     reference_adata.obsm['X_umap'],
-    query_adata.obsm['X_gex']
+    query_adata.obsm['X_gex'],
     method = 'knn'
   )['embedding']
 

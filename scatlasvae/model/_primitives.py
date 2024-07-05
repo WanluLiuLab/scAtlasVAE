@@ -9,8 +9,7 @@ from torch.utils.data import DataLoader
 from torch import nn, einsum
 import warnings
 
-from einops.layers.torch import Rearrange, Reduce
-from einops import rearrange, repeat
+from einops import rearrange
 
 import numpy as np
 

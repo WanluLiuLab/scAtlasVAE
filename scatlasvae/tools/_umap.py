@@ -121,9 +121,9 @@ def umap_alignment(
     indices = np.arange(len(reference_embedding))
     if subsample < len(indices):
         indices = np.random.choice(indices, size=subsample, replace=False)
-    def _knn_helper(reference_embedding, query_embedding, reference_umap, indices):
+    def _knn_helper(reference_embedding, query_embedding, reference_umap, indices, n_neighbors=5):
         from sklearn.neighbors import NearestNeighbors
-        knn = NearestNeighbors(n_neighbors=5)
+        knn = NearestNeighbors(n_neighbors=n_neighbors)
         knn.fit(reference_embedding[indices])
         D, I = knn.kneighbors(query_embedding)
         z = reference_umap[indices][I].mean(1)
@@ -173,7 +173,7 @@ def umap_alignment(
 
 
     elif method == 'knn':
-        z = _knn_helper(reference_embedding, query_embedding, reference_umap, indices)
+        z = _knn_helper(reference_embedding, query_embedding, reference_umap, indices, **{k: v for k, v in kwargs.items() if k in ['n_neighbors']})
         return {
             'embedding': z,
             'reducer': reducer if return_reducer else None,

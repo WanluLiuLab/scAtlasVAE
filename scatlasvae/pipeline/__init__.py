@@ -1,1 +1,1 @@
-from ._pipeline import scAtlasVAEPipeline
+from ._transfer import run_transfer

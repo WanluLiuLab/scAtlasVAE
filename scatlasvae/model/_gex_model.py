@@ -13,6 +13,7 @@ import numpy as np
 from pathlib import Path
 import pandas as pd
 import scanpy as sc
+import einops
 
 # Built-in
 import time
@@ -40,6 +41,8 @@ from ..utils._compat import Literal
 from ..tools._umap import umap_alignment
 from ..utils._utilities import get_default_device
 from ..preprocessing._preprocess import subset_adata_by_genes_fill_zeros
+
+from ..externals.taming.modules.vqvae.quantize import VectorQuantizer
 
 MODULE_PATH = Path(__file__).parent
 warnings.filterwarnings("ignore")
@@ -534,7 +537,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 )
 
         if state_dict["additional_batch_category"] is not None:
-            additional_batch_keys = state_dict['model_config']['batch_key'][1:]
+            if isinstance(state_dict['model_config']['batch_key'], list):
+                additional_batch_keys = state_dict['model_config']['batch_key'][1:]
+            else:
+                additional_batch_keys = state_dict['model_config']['additional_batch_keys']
             for i,k in enumerate(additional_batch_keys):
                 if k not in adata.obs.keys():
                     adata.obs[k] = unlabel_key
@@ -557,7 +563,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     )
 
         if state_dict["additional_label_category"] is not None:
-            additional_label_keys = state_dict['model_config']['label_key'][1:]
+            if isinstance(state_dict['model_config']['label_key'], list):
+                additional_label_keys = state_dict['model_config']['label_key'][1:]
+            else:
+                additional_label_keys = state_dict['model_config']['additional_label_keys']
             for i,k in enumerate(additional_label_keys):
                 if k not in adata.obs.keys():
                     adata.obs[k] = unlabel_key
@@ -614,6 +623,9 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
             if isinstance(self.adata.obs[self.label_key], pd.Categorical):
                 self.label_category = self.adata.obs[self.label_key]
+            elif isinstance(self.adata.obs[self.label_key].cat, pd.core.arrays.categorical.CategoricalAccessor):
+                cat = self.adata.obs[self.label_key].cat
+                self.label_category = pd.Categorical([cat.categories[x] for x in cat.codes], categories=cat.categories)
             else:
                 self.label_category = pd.Categorical(list(self.adata.obs[self.label_key]))
 
@@ -656,8 +668,17 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                             mt(f"         setting n_additional_label {e} to {i}")
                             self.n_additional_label[e] = i
 
+            def get_category(x):
+                if isinstance(x, pd.Categorical):
+                    return x
+                elif isinstance(x.cat, pd.core.arrays.categorical.CategoricalAccessor):
+                    cat = x.cat
+                    return pd.Categorical([cat.categories[x] for x in cat.codes], categories=cat.categories)
+                else:
+                    return pd.Categorical(list(x))
+
             self.additional_label_category = [
-                self.adata.obs[x] if isinstance(self.adata.obs[x],  pd.Categorical) else pd.Categorical(list(self.adata.obs[x]))
+                get_category(self.adata.obs[x])
                 for x in self.additional_label_keys
             ]
             
@@ -1420,7 +1441,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             X = X.to(self.device)
 
             H = self.encode(X, batch_index if batch_index != None else None)
-            prediction = self.fc(H['z'])
+            prediction = H.get('prediction', self.fc(H['z']))
             predictions.append(prediction.detach().cpu())
 
             if self.n_additional_label is not None:
@@ -2002,3 +2023,4 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         X = X.to(self.device)
         lib_size = X.sum(1).to(self.device)
         return X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size
+    

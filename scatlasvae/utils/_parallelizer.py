@@ -10,7 +10,7 @@ from joblib import delayed, Parallel
 import numpy as np
 from scipy.sparse import issparse
 import pandas as pd 
-
+import tqdm 
 from tqdm.contrib.concurrent import process_map, thread_map
 from tqdm.asyncio import tqdm as asyn_tqdm
 from multiprocessing import cpu_count
@@ -18,6 +18,8 @@ import itertools
 import scipy
 from scipy.sparse import csr_matrix
 from typing import Sequence, Tuple, Union, Optional, Callable
+import contextlib
+import joblib
 # from ..utils._compat import Literal
 
 class Parallelizer:
@@ -316,3 +318,38 @@ class ParallelPairwiseCalculator:
             + triangular_matrix.T
             - scipy.sparse.diags(triangular_matrix.diagonal())
         )
+
+
+@contextlib.contextmanager
+def tqdm_joblib(tqdm_object):
+    """Context manager to patch joblib to report into tqdm progress bar given as argument"""
+    class TqdmBatchCompletionCallback(joblib.parallel.BatchCompletionCallBack):
+        def __call__(self, *args, **kwargs):
+            tqdm_object.update(n=self.batch_size)
+            return super().__call__(*args, **kwargs)
+
+    old_batch_callback = joblib.parallel.BatchCompletionCallBack
+    joblib.parallel.BatchCompletionCallBack = TqdmBatchCompletionCallback
+    try:
+        yield tqdm_object
+    finally:
+        joblib.parallel.BatchCompletionCallBack = old_batch_callback
+        tqdm_object.close()
+
+def joblib_parallel_map_with_progress_bar(
+    par_func: Callable,
+    data: Sequence,
+    n_jobs: int = -1,
+):
+    with tqdm_joblib(
+        tqdm.tqdm(
+            total=len(data),
+            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",  # noqa
+            position=0,
+            leave=True
+        )
+    ) as pbar:
+        res = joblib.Parallel(n_jobs=n_jobs)(
+            joblib.delayed(par_func)(d) for d in data
+        )
+    return res

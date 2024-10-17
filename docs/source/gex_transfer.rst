@@ -53,6 +53,14 @@ If not, please see the `Retraining Multi-source GEX Data <gex_retraining.html>`_
     batch_hidden_dim=8,
     pretrained_state_dict="model.pt",
   )
+
+
+Without further training, we can use the :code:`predict_labels` method to transfer the cell type information from the reference to the query dataset.
+
+
+.. code-block:: python
+  :linenos:
+
   predictions = query_model.predict_labels(
     return_pandas=True,
     show_progress=True
@@ -66,7 +74,7 @@ If not, please see the `Retraining Multi-source GEX Data <gex_retraining.html>`_
   count, fig = scatlasvae.ut.cell_type_alignment(
     query_adata,
     obs_1='original_celltype', 
-    obs_2='predicted_cell_type, 
+    obs_2='predicted_cell_type', 
     return_fig=True
   )
   fig.show() 

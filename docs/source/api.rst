@@ -54,6 +54,12 @@ scAtlasVAE's Methods
 .. automethod:: scAtlasVAE.setup_anndata
 .. automethod:: scAtlasVAE.fit
 
+
+Pipeline
+--------
+
+.. automethod:: scatlasvae.pipeline.run_transfer
+
 Tools
 -----
 

@@ -17,6 +17,7 @@ Contents
 
    intro
    preprocessing
+   tutorial_cd8
    gex_integration
    gex_transfer
    gex_retraining

@@ -14,12 +14,12 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
 sys.path.insert(0, os.path.abspath(os.path.join('..', '..')))
-# sys.path.insert(0, os.path.abspath(os.path.join('..', '..', 't_deep_insight')))
+
 print(sys.version)
 # -- Project information -----------------------------------------------------
 
 project = 'scAtlasVAE'
-copyright = '2023, Ziwei Xue'
+copyright = '2024, Ziwei Xue'
 author = 'Ziwei Xue'
 
 # The full version, including alpha/beta/rc tags

@@ -1,10 +1,11 @@
-import setuptools 
+import setuptools
 from scatlasvae._version import version
 
 version = version
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
-    
+
+
 setuptools.setup(
     name="scAtlasVAE",
     version=version,
@@ -35,21 +36,17 @@ setuptools.setup(
         'pandas==1.4.2',
         'tabulate>=0.8.9',
         'umap-learn==0.5.1',
+        "torch==1.13.1",
+        "torchvision==0.14.1",
+        "torchaudio==0.13.1",
         'plotly>=5.10.0',
     ],
     extras_require=dict(
         gpu=[
-            "torch==1.13.1+cu117",
             "pynvml==11.5.0",
-            "torchvision==0.14.1+cu117",
-            "torchaudio==0.13.1+cu117"
-        ],
-        cpu=[
-            "torch==1.13.1",
-            "torchvision==0.14.1",
-            "torchaudio==0.13.1"
+            "nvidia-ml-py3==7.352.0",
         ]
     ),
-    dependency_links=['https://download.pytorch.org/whl/cu117'],
+    dependency_links=['https://download.pytorch.org/whl/torch_stable.html'],
     include_package_data=False,
 )

@@ -12,12 +12,7 @@ Install via PyPI:
 .. code-block:: bash
   :linenos:
 
-  # Install the cuda enabled version
-  pip install "scatlasvae[gpu]"
-
-  # Install the cpu version
-  pip install "scatlasvae[cpu]"
-
+  pip install scatlasvae
 
 Install from source:
 
@@ -34,7 +29,7 @@ PyTorch installation
 ~~~~~~~~~~~~~~~~~~~~
 
 - If you have a different CUDA version, you can check for the PyTorch version that is compatible with your CUDA version [here](https://pytorch.org/get-started/previous-versions/).
-- scAtlasVAE has not been tested with MPS backend.
+- scAtlasVAE has not been tested with other backend including `mps`.
 
 
 Tutorial 

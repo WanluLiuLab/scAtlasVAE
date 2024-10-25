@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Union, Optional, get_origin, get_args
 import functools 
 import warnings
 import inspect
@@ -16,7 +16,17 @@ def deprecated(*, ymd: Tuple[int] = None, optional_message: str = None):
             return func(*args, **kwargs)
         return wrapper 
     return decorate
-        
+
+def is_instance_of_type(value, expected_type):
+    """Check if a value is an instance of the expected type, accounting for Optional."""
+    # Handle Optional (which is Union[T, None])
+    if get_origin(expected_type) is Union:
+        allowed_types = get_args(expected_type)
+        return any(isinstance(value, t) for t in allowed_types)
+
+    # Standard type checking
+    return isinstance(value, expected_type)
+
 def typed(types: dict = None, *, optional_message: str = None):
     def decorate(func):
         arg_names = inspect.getfullargspec(func)[0]
@@ -24,10 +34,10 @@ def typed(types: dict = None, *, optional_message: str = None):
         def wrapper(*args,**kwargs):
             if types:
                 for name, arg in zip(arg_names, args):
-                    if name in types and not isinstance(arg, types[name]):
+                    if name in types and not is_instance_of_type(arg, types[name]):
                         raise TypeError("Argument {} must be {}".format(name, types[name]))
                 for name, arg in kwargs.items():
-                    if name in types and not isinstance(arg, types[name]):
+                    if name in types and not is_instance_of_type(arg, types[name]):
                         raise TypeError("Argument {} must be {}".format(name, types[name]))
             return func(*args, **kwargs)
         return wrapper
@@ -45,7 +55,7 @@ def timed(func):
         return result
     return wrapper
 
-def memoize(func):
+def memorize(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         if args not in wrapper.cache:

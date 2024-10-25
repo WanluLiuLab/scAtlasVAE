@@ -62,6 +62,9 @@ See complete usage guidance at [Integration tutorial](https://scatlasvae.readthe
 
 ## Change Log
 
+### 1.0.5 (2024-10-17)
+
+- Bug fixed for transfer learning
 
 ### 1.0.4 (2024-04-08)
 

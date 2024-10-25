@@ -53,6 +53,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     VAE model for atlas-level integration and label transfer
 
     :param adata: AnnData. If provided, initialize the model with the adata.
+    :param use_layer: Optional[str]. Use the layer in the adata. Default: None
     :param hidden_stacks: List[int]. Number of hidden units in each layer. Default: [128] (one hidden layer with 128 units)
     :param n_latent: int. Number of latent dimensions. Default: 10
     :param n_batch: int. Number of batch. Default: 0
@@ -94,6 +95,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     """
     def __init__(self, *,
        adata: Optional[sc.AnnData] = None,
+       use_layer: Optional[str] = None,
        hidden_stacks: List[int] = [128],
        n_latent: int = 10,
        n_batch: int = 0,
@@ -136,10 +138,18 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             device = get_default_device()
         
         super(scAtlasVAE, self).__init__()
-        if adata.X.dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
-            mw("adata.X is not of type np.int32. \n" + \
-                " "*40 + "\tCheck whether you are using raw count matrix.")
-            # adata.X = adata.X.astype(np.int32)
+        if use_layer not None:
+            if adata.X.dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
+                mw("adata.X is not of type np.int32. \n" + \
+                    " "*40 + "\tCheck whether you are using raw count matrix.")
+                # adata.X = adata.X.astype(np.int32)
+        else:
+            if adata.layers[use_layer].dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
+                mw(f"adata.layers[{use_layer}] is not of type np.int32. \n" + \
+                    " "*40 + "\tCheck whether you are using raw count matrix.")
+                # adata.layers[use_layer] = adata.layers[use_layer].astype(np.int32)
+
+        
         if adata.is_view:
             mw("adata is a view of another AnnData object. \n" + \
                 " "*40 + "This may cause slower training. \n" + \
@@ -148,6 +158,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
 
         self.adata = adata
+        self.use_layer = use_layer
         self.in_dim = adata.shape[1] if adata else -1
         self.n_hidden = hidden_stacks[-1]
         self.n_latent = n_latent
@@ -722,7 +733,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     if k not in self.additional_batch_category_summary[i].keys():
                         self.additional_batch_category_summary[i][k] = 0
 
-        X = self.adata.X
+        if self.use_layer is None:
+            X = self.adata.X
+        else:
+            X = self.adata.layers[self.use_layer]
 
         self._n_record = X.shape[0]
         self._indices = np.array(list(range(self._n_record)))
@@ -1734,11 +1748,18 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         batch_index, label_index, additional_label_index, additional_batch_index = None, None, None, None
         
         if self.low_memory_initialization:
-            X = self.adata.X[
-                self._shuffled_indices_inverse[
-                    batch_indices.cpu().numpy()
+            if self.use_layer is None:
+                X = self.adata.X[
+                    self._shuffled_indices_inverse[
+                        batch_indices.cpu().numpy()
+                    ]
                 ]
-            ]
+            else:
+                X = self.adata.layers[self.use_layer][
+                    self._shuffled_indices_inverse[
+                        batch_indices.cpu().numpy()
+                    ]
+                ]
 
             if self.n_batch > 0 or self.n_label > 0:
                 if not (isinstance(batch_data, Iterable) and len(batch_data) > 1):

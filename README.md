@@ -62,6 +62,11 @@ See complete usage guidance at [Integration tutorial](https://scatlasvae.readthe
 
 ## Change Log
 
+### 1.0.6a1 (2024-10-30)
+
+- Update layer specification for the scAtlasVAE model
+- Bug fixed for progress bar in jupyter notebook enviorment
+
 ### 1.0.5 (2024-10-17)
 
 - Bug fixed for transfer learning

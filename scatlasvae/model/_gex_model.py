@@ -34,7 +34,7 @@ from ._primitives import *
 from ..utils._tensor_utils import one_hot, get_k_elements, get_last_k_elements, get_elements
 from ..utils._decorators import typed
 from ..utils._loss import LossFunction
-from ..utils._logger import mt, mw, Colors, get_tqdm
+from ..utils._logger import mt, mw, Colors, get_tqdm, is_notebook
 
 from ..utils._utilities import random_subset_by_key_fast, next_unicode_char
 from ..utils._compat import Literal
@@ -138,7 +138,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             device = get_default_device()
         
         super(scAtlasVAE, self).__init__()
-        if use_layer not None:
+        if use_layer is not None:
             if adata.X.dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
                 mw("adata.X is not of type np.int32. \n" + \
                     " "*40 + "\tCheck whether you are using raw count matrix.")
@@ -1260,7 +1260,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         pbar = get_tqdm()(
             range(max_epoch), 
             desc="Epoch", 
-            bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+            bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}' if not is_notebook() else '',
             position=0, 
             leave=True
         )
@@ -1419,7 +1419,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             pbar = get_tqdm()(
                 X, 
                 desc="Predicting Labels", 
-                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}' if not is_notebook() else '',
                 position=0, 
                 leave=True
             )
@@ -1528,7 +1528,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             pbar = get_tqdm()(
                 X, 
                 desc="Latent Embedding", 
-                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}' if not is_notebook() else '',
                 position=0, 
                 leave=True
             )
@@ -1562,7 +1562,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             pbar = get_tqdm()(
                 X, 
                 desc="Reconstructing gene expression", 
-                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}' if not is_notebook() else '',
                 position=0, 
                 leave=True
             )

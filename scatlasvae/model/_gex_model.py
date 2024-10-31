@@ -14,12 +14,13 @@ from pathlib import Path
 import pandas as pd
 import scanpy as sc
 import einops
-
-# Built-in
-import time
 import numpy as np
 from scipy.sparse import issparse
 from sklearn.utils import class_weight
+import anndata_tensorstore as ats
+
+# Built-in
+import time
 from collections import Counter
 from itertools import chain
 from copy import deepcopy
@@ -53,6 +54,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     VAE model for atlas-level integration and label transfer
 
     :param adata: AnnData. If provided, initialize the model with the adata.
+    :anndata_tensorstore_path. Path to the AnndataTensorStore. Default: None.
     :param use_layer: Optional[str]. Use the layer in the adata. Default: None
     :param hidden_stacks: List[int]. Number of hidden units in each layer. Default: [128] (one hidden layer with 128 units)
     :param n_latent: int. Number of latent dimensions. Default: 10
@@ -95,6 +97,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     """
     def __init__(self, *,
        adata: Optional[sc.AnnData] = None,
+       anndata_tensorstore_path: Optional[str] = None,
        use_layer: Optional[str] = None,
        hidden_stacks: List[int] = [128],
        n_latent: int = 10,
@@ -137,27 +140,46 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         if device is None:
             device = get_default_device()
         
-        super(scAtlasVAE, self).__init__()
-        if use_layer is not None:
-            if adata.X.dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
-                mw("adata.X is not of type np.int32. \n" + \
-                    " "*40 + "\tCheck whether you are using raw count matrix.")
-                # adata.X = adata.X.astype(np.int32)
+        if anndata_tensorstore_path is None and adata is None:
+            raise ValueError("Please provide either anndata or anndata_tensorstore_path")
+        elif anndata_tensorstore_path is not None and adata is not None:
+            raise ValueError("Please provide either anndata or anndata_tensorstore_path, not both")
+        elif anndata_tensorstore_path is not None:
+            low_memory_initialization = True
+            var = pd.read_parquet(os.path.join(anndata_tensorstore_path, ats.ATS_FILE_NAME.var))
+            obs = pd.read_parquet(os.path.join(anndata_tensorstore_path, ats.ATS_FILE_NAME.obs))
+            if constrain_latent_key is not None:
+                obsm = ats._ext.load_np_array_from_tensorstore(
+                    os.path.join(anndata_tensorstore_path, ats.ATS_FILE_NAME.obsm, constrain_latent_key)
+                )
+            self.adata = sc.AnnData(
+                obs=obs
+                obsm={
+                    constrain_latent_key: obsm
+                } if constrain_latent_key is not None else None,
+            )
         else:
-            if adata.layers[use_layer].dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
-                mw(f"adata.layers[{use_layer}] is not of type np.int32. \n" + \
-                    " "*40 + "\tCheck whether you are using raw count matrix.")
-                # adata.layers[use_layer] = adata.layers[use_layer].astype(np.int32)
+            if adata.is_view:
+                mw("adata is a view of another AnnData object. \n" + \
+                    " "*40 + "This may cause slower training. \n" + \
+                    " "*40 + "Use adata=adata.copy() to create a new AnnData object."
+                )
+            if use_layer is not None:
+                if adata.X.dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
+                    mw("adata.X is not of type np.int32. \n" + \
+                        " "*40 + "\tCheck whether you are using raw count matrix.")
+                    # adata.X = adata.X.astype(np.int32)
+            else:
+                if adata.layers[use_layer].dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
+                    mw(f"adata.layers[{use_layer}] is not of type np.int32. \n" + \
+                        " "*40 + "\tCheck whether you are using raw count matrix.")
+                    # adata.layers[use_layer] = adata.layers[use_layer].astype(np.int32)
 
         
-        if adata.is_view:
-            mw("adata is a view of another AnnData object. \n" + \
-                " "*40 + "This may cause slower training. \n" + \
-                " "*40 + "Use adata=adata.copy() to create a new AnnData object."
-            )
-
+        super(scAtlasVAE, self).__init__()
 
         self.adata = adata
+        self.anndata_tensorstore_path = anndata_tensorstore_path
         self.use_layer = use_layer
         self.in_dim = adata.shape[1] if adata else -1
         self.n_hidden = hidden_stacks[-1]
@@ -733,11 +755,6 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     if k not in self.additional_batch_category_summary[i].keys():
                         self.additional_batch_category_summary[i][k] = 0
 
-        if self.use_layer is None:
-            X = self.adata.X
-        else:
-            X = self.adata.layers[self.use_layer]
-
         self._n_record = X.shape[0]
         self._indices = np.array(list(range(self._n_record)))
         batch_categories, label_categories = None, None
@@ -812,6 +829,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     else:
                         _dataset = list(X)
         else:
+            if self.use_layer is None:
+                X = self.adata.X
+            else:
+                X = self.adata.layers[self.use_layer]
             if self.constrain_latent_embedding and self.constrain_latent_key in self.adata.obsm.keys():
                 P = self.adata.obsm[self.constrain_latent_key]
                 if additional_batch_categories is not None:
@@ -1748,18 +1769,36 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         batch_index, label_index, additional_label_index, additional_batch_index = None, None, None, None
         
         if self.low_memory_initialization:
-            if self.use_layer is None:
-                X = self.adata.X[
-                    self._shuffled_indices_inverse[
-                        batch_indices.cpu().numpy()
-                    ]
-                ]
+            if self.anndata_tensorstore_path is not None:
+                if self.use_layer is None:
+                    X = ats._ext.load_X(
+                        os.path.join(self.anndata_tensorstore_path, ats.ATS_FILE_NAME.X),
+                        obs_indices = self._shuffled_indices_inverse[
+                            batch_indices.cpu().numpy()
+                        ],
+                        to_sparse=False
+                    )
+                else:
+                    X = ats._ext.load_X(
+                        os.path.join(self.anndata_tensorstore_path, ats.ATS_FILE_NAME.layers, self.use_layer),
+                        obs_indices = self._shuffled_indices_inverse[
+                            batch_indices.cpu().numpy()
+                        ],
+                        to_sparse=False
+                    )
             else:
-                X = self.adata.layers[self.use_layer][
-                    self._shuffled_indices_inverse[
-                        batch_indices.cpu().numpy()
+                if self.use_layer is None:
+                    X = self.adata.X[
+                        self._shuffled_indices_inverse[
+                            batch_indices.cpu().numpy()
+                        ]
                     ]
-                ]
+                else:
+                    X = self.adata.layers[self.use_layer][
+                        self._shuffled_indices_inverse[
+                            batch_indices.cpu().numpy()
+                        ]
+                    ]
 
             if self.n_batch > 0 or self.n_label > 0:
                 if not (isinstance(batch_data, Iterable) and len(batch_data) > 1):

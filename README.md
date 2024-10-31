@@ -62,6 +62,10 @@ See complete usage guidance at [Integration tutorial](https://scatlasvae.readthe
 
 ## Change Log
 
+### 1.0.6a2 (2024-10-31)
+
+- Add support for anndata-tensorstore 
+
 ### 1.0.6a1 (2024-10-30)
 
 - Update layer specification for the scAtlasVAE model

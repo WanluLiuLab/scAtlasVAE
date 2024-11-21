@@ -28,7 +28,7 @@ setuptools.setup(
         'numpy>=1.21,<1.22',
         'scanpy==1.8.1',
         'scikit-learn==0.24.1',
-        'matplotlib>=3.3.4',
+        'matplotlib>=3.3.4,<=3.6.3',
         'einops>=0.4.1 ',
         'biopython==1.79',
         'seaborn==0.12.2',

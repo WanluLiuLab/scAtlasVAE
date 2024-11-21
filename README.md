@@ -1,3 +1,7 @@
+[![Stars](https://img.shields.io/github/stars/WanluLiuLab/scAtlasVAE?style=flat&logo=GitHub&color=blue)](https://github.com/WanluLiuLab/scAtlasVAE/stargazers)
+[![PyPI](https://img.shields.io/pypi/v/scatlasvae?logo=PyPI)](https://pypi.org/project/rapids-singlecell)
+[![Documentation Status](https://readthedocs.org/projects/scatlasvae/badge/?version=latest)](https://scatlasvae.readthedocs.io?badge=latest)
+
 # scAtlasVAE
 
 scAtlasVAE is a method for rapid atlas-level integration of large-scale scRNA-seq datasets and data transfer for query datasets. 
@@ -60,11 +64,12 @@ vae_model.fit()
 
 See complete usage guidance at [Integration tutorial](https://scatlasvae.readthedocs.io/en/latest/gex_integration.html)
 
+
 ## Change Log
 
 ### 1.0.6a2 (2024-10-31)
 
-- Add support for anndata-tensorstore 
+- Add support for anndata-tensorstore
 
 ### 1.0.6a1 (2024-10-30)
 

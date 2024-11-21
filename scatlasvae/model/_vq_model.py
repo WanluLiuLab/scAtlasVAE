@@ -1,60 +1,9 @@
 from ._gex_model import *
 import einops
 
-class scAtlasVQVAE(scAtlasVAE):
-    def __init__(self, vq_k=512, *args, **kwargs):
-        super(scAtlasVQVAE, self).__init__(*args, **kwargs)
-        self.quantitizer = VectorQuantizer(
-            n_e = vq_k,
-            e_dim = self.n_latent,
-            beta = 0.25,
-        ).to(self.device)
-        self.vq_k = vq_k
-
-    def encode(
-        self, 
-        X: torch.Tensor, 
-        batch_index: torch.Tensor = None, 
-        eps: float = 1e-4
-    ):
-        libsize = torch.log(X.sum(1))
-        if self.reconstruction_method == 'zinb' or self.reconstruction_method == 'nb':
-            if self.total_variational:
-                X = self._normalize_data(X, after=1e4, copy=True)
-            if self.log_variational:
-                X = torch.log(1+X)
-        q = self.encoder.encode(torch.hstack([X,libsize.unsqueeze(1)])) if self.encode_libsize else self.encoder.encode(X)
-        q_mu = self.z_mean_fc(q)
-        q_var = torch.exp(self.z_var_fc(q)) + eps
-        z = Normal(q_mu, q_var.sqrt()).rsample()
-        z_vq, emb_loss, info = self.quantitizer(
-            einops.rearrange(
-                z,
-                '(b w h) d -> b d w h', 
-                w = 1,
-                h = 1
-            )
-        )
-
-        z_vq = einops.rearrange(z_vq, 'b d w h -> (b w h) d')
-
-        H = dict(
-            q = q,
-            q_mu = q_mu,
-            q_var = q_var,
-            z = z_vq,
-            z_old = z,
-            emb_loss = emb_loss,
-            info = info
-        )
-
-        return H
-
-
-
-class scAtlasVQVAE2(scAtlasVAE):
+class scAtlasQVAE(scAtlasVAE):
     def __init__(self, *args, **kwargs):
-        super(scAtlasVQVAE2, self).__init__(*args, **kwargs)
+        super(scAtlasQVAE, self).__init__(*args, **kwargs)
         self.quantitizer = nn.Embedding(self.n_label, self.n_latent).to(self.device)
 
     def encode(

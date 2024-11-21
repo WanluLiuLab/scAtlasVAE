@@ -16,7 +16,7 @@ import math
 import tabulate
 import warnings
 import tqdm
-from ._logger import Colors
+from ._logger import Colors, mw
 from ._parallelizer import Parallelizer
 from ._decorators import deprecated
 
@@ -37,7 +37,7 @@ def print_gpu_mem(i):
         import nvidia_smi
     except:
         if not is_nvidia_smi_warned:
-            print("install nvidia_smi with pip install nvidia-smi for automatically select cuda device by memory usage.")
+            mw("install nvidia_smi with pip install nvidia-ml-py3 for automatically select cuda device by memory usage.")
             is_nvidia_smi_warned = True
         return "0", "0", "0 %"
     nvidia_smi.nvmlInit()

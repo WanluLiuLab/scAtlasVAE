@@ -19,6 +19,7 @@ from scipy.sparse import issparse
 from sklearn.utils import class_weight
 import anndata_tensorstore as ats
 
+
 # Built-in
 import time
 from collections import Counter
@@ -26,6 +27,7 @@ from itertools import chain
 from copy import deepcopy
 import json
 from typing import Mapping, Union, Iterable, Tuple, Optional, Mapping, Dict
+from concurrent.futures import ThreadPoolExecutor
 import os
 import warnings
 
@@ -43,7 +45,6 @@ from ..tools._umap import umap_alignment
 from ..utils._utilities import get_default_device
 from ..preprocessing._preprocess import subset_adata_by_genes_fill_zeros
 
-from ..externals.taming.modules.vqvae.quantize import VectorQuantizer
 
 MODULE_PATH = Path(__file__).parent
 warnings.filterwarnings("ignore")
@@ -98,6 +99,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     def __init__(self, *,
        adata: Optional[sc.AnnData] = None,
        anndata_tensorstore_path: Optional[str] = None,
+       anndata_tensorstore_var_names: Optional[Iterable[str]] = None,
        use_layer: Optional[str] = None,
        hidden_stacks: List[int] = [128],
        n_latent: int = 10,
@@ -153,12 +155,13 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     os.path.join(anndata_tensorstore_path, ats.ATS_FILE_NAME.obsm, constrain_latent_key)
                 )
             self.adata = sc.AnnData(
-                obs=obs
+                obs=obs,
                 obsm={
                     constrain_latent_key: obsm
                 } if constrain_latent_key is not None else None,
             )
         else:
+            self.adata = adata
             if adata.is_view:
                 mw("adata is a view of another AnnData object. \n" + \
                     " "*40 + "This may cause slower training. \n" + \
@@ -178,10 +181,15 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         
         super(scAtlasVAE, self).__init__()
 
-        self.adata = adata
+        
         self.anndata_tensorstore_path = anndata_tensorstore_path
+        self.anndata_tensorstore_var_names = anndata_tensorstore_var_names
+        self.anndata_tensorstore_var_indices = None
+        if anndata_tensorstore_var_names is not None:
+            self.anndata_tensorstore_var_indices = np.argwhere(np.isin(var.index, anndata_tensorstore_var_names)).flatten()
+            var = var.loc[anndata_tensorstore_var_names]
         self.use_layer = use_layer
-        self.in_dim = adata.shape[1] if adata else -1
+        self.in_dim = adata.shape[1] if adata else var.shape[0]
         self.n_hidden = hidden_stacks[-1]
         self.n_latent = n_latent
         self.n_additional_batch = n_additional_batch
@@ -257,7 +265,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         self.constrain_n_label = constrain_n_label
         self.constrain_n_batch = constrain_n_batch
         self.low_memory_initialization = low_memory_initialization
-        if self.low_memory_initialization:
+        if self.low_memory_initialization and self.anndata_tensorstore_path is None:
             mw(
                 "low_memory_initialization is set to True. \n" + \
                 " "*40 + "This will reduce the memory usage during initialization,\n" + \
@@ -755,7 +763,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     if k not in self.additional_batch_category_summary[i].keys():
                         self.additional_batch_category_summary[i][k] = 0
 
-        self._n_record = X.shape[0]
+        self._n_record = self.adata.shape[0]
         self._indices = np.array(list(range(self._n_record)))
         batch_categories, label_categories = None, None
         additional_label_categories = None
@@ -827,7 +835,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     elif label_categories is not None:
                         _dataset = list(zip(label_categories))
                     else:
-                        _dataset = list(X)
+                        _dataset = list(np.arange(self._n_record))
         else:
             if self.use_layer is None:
                 X = self.adata.X
@@ -1154,40 +1162,50 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         epoch_prediction_loss = 0
         epoch_mmd_loss = 0
         b = 0
+
+        X_test = list(X_test)
         with torch.no_grad():
-            for b, X in enumerate(X_test):
-                X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(X)
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = None
+                for b, batch_indices in enumerate(X_test):
 
-                H, R, L = self.forward(
-                    X,
-                    lib_size,
-                    batch_index,
-                    label_index,
-                    additional_label_index,
-                    additional_batch_index,
-                    P,
-                    reduction=reconstruction_reduction,
-                    compute_mmd = mmd_weight > 0
-                )
-                reconstruction_loss = L['reconstruction_loss']
-                prediction_loss = pred_weight * L['prediction_loss']
-                additional_prediction_loss = pred_weight * L['additional_prediction_loss']
-                kldiv_loss = kl_weight * L['kldiv_loss']
-                mmd_loss = mmd_weight * L['mmd_loss']
+                    if future is None:
+                        X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(batch_indices)
+                    else:
+                        X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = future.result()
 
-                avg_reconstruction_loss = reconstruction_loss.sum()
-                avg_kldiv_loss = kldiv_loss.sum()
-                avg_mmd_loss = mmd_loss
+                    future = executor.submit(self._prepare_batch, X_test[b+1])
 
-                epoch_reconstruction_loss += avg_reconstruction_loss.item()
-                epoch_kldiv_loss += avg_kldiv_loss.item()
-                if self.n_label > 0:
-                    epoch_prediction_loss += prediction_loss.sum().item()
-                if self.n_additional_label is not None:
-                    epoch_prediction_loss += additional_prediction_loss.sum().item()
+                    H, R, L = self.forward(
+                        X,
+                        lib_size,
+                        batch_index,
+                        label_index,
+                        additional_label_index,
+                        additional_batch_index,
+                        P,
+                        reduction=reconstruction_reduction,
+                        compute_mmd = mmd_weight > 0
+                    )
+                    reconstruction_loss = L['reconstruction_loss']
+                    prediction_loss = pred_weight * L['prediction_loss']
+                    additional_prediction_loss = pred_weight * L['additional_prediction_loss']
+                    kldiv_loss = kl_weight * L['kldiv_loss']
+                    mmd_loss = mmd_weight * L['mmd_loss']
 
-                epoch_mmd_loss += avg_mmd_loss
-                epoch_total_loss += (avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss).item()
+                    avg_reconstruction_loss = reconstruction_loss.sum()
+                    avg_kldiv_loss = kldiv_loss.sum()
+                    avg_mmd_loss = mmd_loss
+
+                    epoch_reconstruction_loss += avg_reconstruction_loss.item()
+                    epoch_kldiv_loss += avg_kldiv_loss.item()
+                    if self.n_label > 0:
+                        epoch_prediction_loss += prediction_loss.sum().item()
+                    if self.n_additional_label is not None:
+                        epoch_prediction_loss += additional_prediction_loss.sum().item()
+
+                    epoch_mmd_loss += avg_mmd_loss
+                    epoch_total_loss += (avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss).item()
         return {
             "epoch_reconstruction_loss":  epoch_reconstruction_loss / (b+1),
             "epoch_kldiv_loss": epoch_kldiv_loss / (b+1),
@@ -1221,6 +1239,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         pred_last_n_epoch_fconly: bool = False,
         compute_batch_after_n_epoch: int = 0,
         reconstruction_reduction: str = 'sum',
+        n_concurrent_batch: int = 1,
     ):
         """
         Fit the model.
@@ -1327,61 +1346,75 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 if  pred_last_n_epoch_fconly:
                     optimizer = optim.AdamW(chain(self.att.parameters(), self.fc.parameters()), lr, weight_decay=weight_decay)
 
-            for b, X in enumerate(X_train):
-                X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(X)
+            X_train = list(X_train) # convert to list
 
-                H, R, L = self.forward(
-                    X,
-                    lib_size,
-                    batch_index,
-                    label_index,
-                    additional_label_index,
-                    additional_batch_index,
-                    P,
-                    reduction=reconstruction_reduction,
-                    compute_mmd = mmd_weight > 0 and epoch >= compute_batch_after_n_epoch
-                )
+            future_dict = {}
 
-                reconstruction_loss = L['reconstruction_loss']
-                prediction_loss = pred_weight * L['prediction_loss']
-                additional_prediction_loss = pred_weight * L['additional_prediction_loss']
-                kldiv_loss = kl_weight * L['kldiv_loss']
-                mmd_loss = mmd_weight * L['mmd_loss']
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                for b, batch_indices in enumerate(X_train):
+                    future = future_dict.get(b, None)
+                    if future is None:
+                        X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(batch_indices)
+                    else:
+                        X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = future.result()
+                        # future.clear()
+                        future_dict.pop(b)
 
-                avg_gate_loss = gate_weight * torch.sigmoid(R['px_rna_dropout']).sum(dim=1).mean()
+                    for fb in range(b+1, b+1+n_concurrent_batch):
+                        future_dict[fb] = executor.submit(self._prepare_batch, X_train[fb])
 
-                avg_reconstruction_loss = reconstruction_loss.sum()  / n_per_batch
-                avg_kldiv_loss = kldiv_loss.sum()  / n_per_batch
-                avg_mmd_loss = mmd_loss / n_per_batch
+                    H, R, L = self.forward(
+                        X,
+                        lib_size,
+                        batch_index,
+                        label_index,
+                        additional_label_index,
+                        additional_batch_index,
+                        P,
+                        reduction=reconstruction_reduction,
+                        compute_mmd = mmd_weight > 0 and epoch >= compute_batch_after_n_epoch
+                    )
 
-                epoch_reconstruction_loss += avg_reconstruction_loss.item()
-                epoch_kldiv_loss += avg_kldiv_loss.item()
-                epoch_mmd_loss += avg_mmd_loss.item()
-                epoch_gate_loss += avg_gate_loss.item()
-                
-                if self.n_label > 0:
-                    epoch_prediction_loss += prediction_loss.sum().item()
+                    reconstruction_loss = L['reconstruction_loss']
+                    prediction_loss = pred_weight * L['prediction_loss']
+                    additional_prediction_loss = pred_weight * L['additional_prediction_loss']
+                    kldiv_loss = L['kldiv_loss']
+                    mmd_loss = mmd_weight * L['mmd_loss']
 
-                if epoch > max_epoch - pred_last_n_epoch:
-                    loss = avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss + (prediction_loss.sum() + additional_prediction_loss.sum()) / (len(self.n_additional_label) if self.n_additional_label is not None else 0 + 1) + avg_gate_loss
-                else:
-                    loss = avg_reconstruction_loss + avg_kldiv_loss + avg_mmd_loss + avg_gate_loss
+                    avg_gate_loss = gate_weight * torch.sigmoid(R['px_rna_dropout']).sum(dim=1).mean()
 
-                if self.constrain_latent_embedding:
-                    loss += constrain_weight * L['latent_constrain_loss']
-                    epoch_constrain_loss += L['latent_constrain_loss'].item()
+                    avg_reconstruction_loss = reconstruction_loss.sum()  / n_per_batch
+                    avg_kldiv_loss = kldiv_loss.sum()  / n_per_batch
+                    avg_mmd_loss = mmd_loss / n_per_batch
 
-                epoch_total_loss += loss.item()
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                pbar.set_postfix({
-                    'rec': '{:.2e}'.format(loss_record["epoch_reconstruction_loss"]),
-                    'kl': '{:.2e}'.format(loss_record["epoch_kldiv_loss"]),
-                    'pred': '{:.2e}'.format(loss_record["epoch_prediction_loss"]),
-                    'mmd': '{:.2e}'.format(loss_record["epoch_mmd_loss"]),
-                    'step': f'{b} / {len(X_train)}'
-                })
+                    epoch_reconstruction_loss += avg_reconstruction_loss.item()
+                    epoch_kldiv_loss += avg_kldiv_loss.item()
+                    epoch_mmd_loss += avg_mmd_loss.item()
+                    epoch_gate_loss += avg_gate_loss.item()
+                    
+                    if self.n_label > 0:
+                        epoch_prediction_loss += prediction_loss.sum().item()
+
+                    if epoch > max_epoch - pred_last_n_epoch:
+                        loss = avg_reconstruction_loss + avg_kldiv_loss * kl_weight + avg_mmd_loss + (prediction_loss.sum() + additional_prediction_loss.sum()) / (len(self.n_additional_label) if self.n_additional_label is not None else 0 + 1) + avg_gate_loss
+                    else:
+                        loss = avg_reconstruction_loss + avg_kldiv_loss * kl_weight + avg_mmd_loss + avg_gate_loss
+
+                    if self.constrain_latent_embedding:
+                        loss += constrain_weight * L['latent_constrain_loss']
+                        epoch_constrain_loss += L['latent_constrain_loss'].item()
+
+                    epoch_total_loss += loss.item()
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                    pbar.set_postfix({
+                        'rec': '{:.2e}'.format(loss_record["epoch_reconstruction_loss"]),
+                        'kl': '{:.2e}'.format(loss_record["epoch_kldiv_loss"]),
+                        'pred': '{:.2e}'.format(loss_record["epoch_prediction_loss"]),
+                        'mmd': '{:.2e}'.format(loss_record["epoch_mmd_loss"]),
+                        'step': f'{b} / {len(X_train)}'
+                    })
             loss_record = self.calculate_metric(X_test, kl_weight, pred_weight, mmd_weight, reconstruction_reduction)
             if lr_schedule:
                 scheduler.step(loss_record["epoch_total_loss"])
@@ -1444,49 +1477,29 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 position=0, 
                 leave=True
             )
+        X = list(X)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = None
+            for e, batch_indices in enumerate(X):
+                if future is None:
+                    X, _, batch_index, _, _, _, _ = self._prepare_batch(batch_indices)
+                else:
+                    X, _, batch_index, _, _, _, _ = future.result()
+                
+                future = executor.submit(self._prepare_batch, X[e+1])
 
-        for x in X:
-            x = self._dataset[x.cpu().numpy()]
-            batch_index = None
-            label_index = None
-            if self.n_batch > 0 or self.n_label > 0:
-                if not isinstance(x, Iterable) and len(x) > 1:
-                    raise ValueError()
-                if self.n_batch > 0 and self.n_label > 0:
-                    X, batch_index, label_index = get_k_elements(x,0), get_k_elements(x,1), get_k_elements(x,2)
-                elif self.n_batch > 0:
-                    X, batch_index = get_k_elements(x,0), get_k_elements(x,1)
-                elif self.n_label > 0:
-                    X, label_index = get_k_elements(x,0), get_k_elements(x,1)
+                H = self.encode(X, batch_index if batch_index != None else None)
+                prediction = H.get('prediction', self.fc(H['z']))
+                predictions.append(prediction.detach().cpu())
 
-            if self.n_label > 0:
-                label_index = torch.tensor(label_index)
-                if not isinstance(label_index, torch.FloatTensor):
-                    label_index = label_index.type(torch.FloatTensor)
-                label_index = label_index.to(self.device).unsqueeze(1)
-            if self.n_batch > 0:
-                batch_index = torch.tensor(batch_index)
-                if not isinstance(batch_index, torch.FloatTensor):
-                    batch_index = batch_index.type(torch.FloatTensor)
-                batch_index = batch_index.to(self.device).unsqueeze(1)
+                if self.n_additional_label is not None:
+                    additional_prediction = [None] * len(self.n_additional_label)
+                    for i in range(len(self.n_additional_label)):
+                        additional_prediction[i] = self.additional_fc[i](H['z']).detach().cpu()
+                    additional_predictions.append(additional_prediction)
 
-            X = torch.tensor(np.vstack(list(map(lambda x: x.toarray() if issparse(x) else x, X))))
-            if not isinstance(X, torch.FloatTensor):
-                X = X.type(torch.FloatTensor)
-            X = X.to(self.device)
-
-            H = self.encode(X, batch_index if batch_index != None else None)
-            prediction = H.get('prediction', self.fc(H['z']))
-            predictions.append(prediction.detach().cpu())
-
-            if self.n_additional_label is not None:
-                additional_prediction = [None] * len(self.n_additional_label)
-                for i in range(len(self.n_additional_label)):
-                    additional_prediction[i] = self.additional_fc[i](H['z']).detach().cpu()
-                additional_predictions.append(additional_prediction)
-
-            if show_progress:
-                pbar.update(1)
+                if show_progress:
+                    pbar.update(1)
 
         if show_progress:
             pbar.close()
@@ -1554,17 +1567,25 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 leave=True
             )
 
-        for x in X:
-            X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(x)
+        X = list(X)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = None
+            for e, batch_indices in enumerate(X):
+                if future is None:
+                    X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(batch_indices)
+                else:
+                    X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = future.result()
+                
+                future = executor.submit(self._prepare_batch, X[e+1])
 
-            H = self.encode(X, batch_index if batch_index != None else None)
-            if isinstance(latent_key, str):
-                Zs.append(H[latent_key].detach().cpu().numpy())
-            elif isinstance(latent_key, Iterable):
-                for i in range(len(latent_key)):
-                    Zs[i].append(H[latent_key[i]].detach().cpu().numpy())
-            if show_progress:
-                pbar.update(1)
+                H = self.encode(X, batch_index if batch_index != None else None)
+                if isinstance(latent_key, str):
+                    Zs.append(H[latent_key].detach().cpu().numpy())
+                elif isinstance(latent_key, Iterable):
+                    for i in range(len(latent_key)):
+                        Zs[i].append(H[latent_key[i]].detach().cpu().numpy())
+                if show_progress:
+                    pbar.update(1)
         if show_progress:
             pbar.close()
         if isinstance(latent_key, str):
@@ -1588,21 +1609,29 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 leave=True
             )
 
-        for x in X:
-            X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(x)
+        X = list(X)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = None
+            for e, batch_indices in enumerate(X):
+                if future is None:
+                    X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(batch_indices)
+                else:
+                    X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = future.result()
+                
+                future = executor.submit(self._prepare_batch, X[e+1])
 
-            _,R,_ = self.forward(
-                X,
-                lib_size,
-                batch_index,
-                label_index,
-                additional_label_index,
-                additional_batch_index,
-                P,
-            )
-            Zs.append(R[k].detach().cpu().numpy())
-            if show_progress:
-                pbar.update(1)
+                _,R,_ = self.forward(
+                    X,
+                    lib_size,
+                    batch_index,
+                    label_index,
+                    additional_label_index,
+                    additional_batch_index,
+                    P,
+                )
+                Zs.append(R[k].detach().cpu().numpy())
+                if show_progress:
+                    pbar.update(1)
         return np.vstack(Zs)[self._shuffle_indices]
 
 
@@ -1776,6 +1805,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         obs_indices = self._shuffled_indices_inverse[
                             batch_indices.cpu().numpy()
                         ],
+                        var_indices = self.anndata_tensorstore_var_indices,
                         to_sparse=False
                     )
                 else:
@@ -1784,6 +1814,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         obs_indices = self._shuffled_indices_inverse[
                             batch_indices.cpu().numpy()
                         ],
+                        var_indices = self.anndata_tensorstore_var_indices,
                         to_sparse=False
                     )
             else:
@@ -1882,7 +1913,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         else:
                             label_index = get_k_elements(batch_data,0)
         
-            X = torch.tensor(X.toarray() if issparse(X) else X)
+            X = torch.tensor((X.toarray() if issparse(X) else X).astype(np.float32))
         else:
             if self.n_batch > 0 or self.n_label > 0:
                 if not isinstance(batch_data, Iterable) and len(batch_data) > 1:

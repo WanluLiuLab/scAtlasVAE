@@ -6,6 +6,20 @@
 Welcome to scAtlasVAE's documentation!
 ============================================
 
+.. |Maintenance yes| image:: https://img.shields.io/badge/Maintained%3F-yes-green.svg
+   :target: https://github.com/WanluLiuLab/scAtlasVAE
+
+|PyPI version|
+
+.. |PyPI version| image:: https://img.shields.io/badge/pypi-v0.10.11-blue
+   :target: https://pypi.org/project/scatlasvae
+
+|Docs passing|
+
+.. |Docs passing| image:: https://readthedocs.org/projects/scatlasvae/badge/?version=latest
+   :target: https://scatlasvae.readthedocs.io/en/latest/?badge=latest
+
+
 .. toctree::
    :maxdepth: 4
    :caption: Contents:

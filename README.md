@@ -25,15 +25,11 @@ conda activate scatlasvae
 
 ### Installing via PyPI
 
-If you are using GPU, please install the GPU version of scAtlasVAE.
+If you are using GPU, please install additional dependencies for GPU (`pynvml` and `nvidia-ml-py3`.)
 ```shell
 pip3 install "scatlasvae[gpu]"
 ```
 
-If you are using CPU, please install the CPU version of scAtlasVAE.
-```shell
-pip3 install "scatlasvae[cpu]"
-```
 
 
 ### Install PyTorch 
@@ -45,6 +41,12 @@ Please see the [PyTorch official website](https://pytorch.org/) for installing G
 import torch
 print(torch.__version__)
 print(torch.cuda.is_available())
+```
+
+If the above code returns `True`, the GPU is available.
+Else, please manually install the GPU version of PyTorch via
+```shell
+pip3 install torch==1.13.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
 ```
 
 scAtlasVAE was tested on NVIDIA RTX2080Ti, RTX3090Ti, A10, A100, and A800 device on Ubuntu 20.04.

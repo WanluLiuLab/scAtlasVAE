@@ -3,6 +3,11 @@ import importlib
 import subprocess
 import warnings
 
+from numba import NumbaDeprecationWarning
+
+# Ignore NumbaDeprecationWarning
+warnings.filterwarnings("ignore", category=NumbaDeprecationWarning)
+
 
 if not within_flit():  # see function docstring on why this is there
     # the actual API

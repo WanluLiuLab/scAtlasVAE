@@ -28,6 +28,16 @@ import torch.nn as nn
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+from enum import Enum, unique
+
+@unique
+class EncoderType(Enum):
+    TABNET = "tabnet"
+    SAE = "sae"
+
+
+
 #https://github.com/Bjarten/early-stopping-pytorch/blob/master/pytorchtools.py
 class EarlyStopping:
     """

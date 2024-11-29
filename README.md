@@ -48,6 +48,8 @@ Else, please manually install the GPU version of PyTorch via
 ```shell
 pip3 install torch==1.13.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
 ```
+Where `cu117` is your GPU version. You can find the version of your GPU from [NVIDIA official website](https://developer.nvidia.com/cuda-gpus).
+
 
 scAtlasVAE was tested on NVIDIA RTX2080Ti, RTX3090Ti, A10, A100, and A800 device on Ubuntu 20.04.
 
@@ -66,6 +68,11 @@ vae_model.fit()
 
 See complete usage guidance at [Integration tutorial](https://scatlasvae.readthedocs.io/en/latest/gex_integration.html)
 
+## Cite
+
+If you find scAtlasVAE useful for your research, please cite our paper:
+
+Xue, Z., Wu, L., Tian, R. *et al.* (2024). Integrative mapping of human CD8+ T cells in inflammation and cancer. *Nature Methods*. [DOI: 10.1038/s41592-024-02530-0](https://doi.org/10.1038/s41592-024-02530-0)
 
 ## Change Log
 

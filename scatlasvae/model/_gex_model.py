@@ -17,7 +17,7 @@ import einops
 import numpy as np
 from scipy.sparse import issparse
 from sklearn.utils import class_weight
-import anndata_tensorstore as ats
+# import anndata_tensorstore as ats
 
 
 # Built-in
@@ -38,12 +38,15 @@ from ..utils._tensor_utils import one_hot, get_k_elements, get_last_k_elements, 
 from ..utils._decorators import typed
 from ..utils._loss import LossFunction
 from ..utils._logger import mt, mw, Colors, get_tqdm, is_notebook
-
 from ..utils._utilities import random_subset_by_key_fast, next_unicode_char
 from ..utils._compat import Literal
-from ..tools._umap import umap_alignment
 from ..utils._utilities import get_default_device
+
+from ..tools._umap import umap_alignment
+
 from ..preprocessing._preprocess import subset_adata_by_genes_fill_zeros
+
+from ..externals.tabnet.tab_network import TabNetEncoder
 
 
 MODULE_PATH = Path(__file__).parent
@@ -111,6 +114,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
        additional_batch_keys: Iterable[str] = None, #TODO: deprecate in the future
        label_key: Union[str, Iterable[str]] = None,
        additional_label_keys: Iterable[str] = None, #TODO: deprecate in the future
+       encoder_type: EncoderType = EncoderType.SAE,
        dispersion:  Literal["gene", "gene-batch", "gene-cell"] = "gene-cell",
        rna_dropout: Literal["gene", "cell"] = "gene",
        log_variational: bool = True,
@@ -167,7 +171,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     " "*40 + "This may cause slower training. \n" + \
                     " "*40 + "Use adata=adata.copy() to create a new AnnData object."
                 )
-            if use_layer is not None:
+            if use_layer is None:
                 if adata.X.dtype != np.int32 and reconstruction_method in ['zinb', 'nb']:
                     mw("adata.X is not of type np.int32. \n" + \
                         " "*40 + "\tCheck whether you are using raw count matrix.")
@@ -195,7 +199,9 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         self.n_additional_batch = n_additional_batch
         self.n_additional_label = n_additional_label
         self._hidden_stacks = hidden_stacks
-
+        
+        self.encoder_type = encoder_type
+        
         if n_batch > 0 and not batch_key:
             raise ValueError("Please provide a batch key if n_batch is greater than 0")
         if n_label > 0 and not label_key:
@@ -322,15 +328,22 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         # ENCODERS #
         ############
 
-        self.encoder = SAE(
-            self.in_dim if not self.encode_libsize else self.in_dim + 1,
-            stacks = hidden_stacks,
-            # n_cat_list = [self.n_batch] if self.n_batch > 0 else None,
-            cat_dim = batch_hidden_dim,
-            cat_embedding = batch_embedding,
-            encode_only = True,
-            **self.fcargs
-        )
+        if self.encoder_type == EncoderType.SAE:
+            self.encoder = SAE(
+                self.in_dim if not self.encode_libsize else self.in_dim + 1,
+                stacks = hidden_stacks,
+                # n_cat_list = [self.n_batch] if self.n_batch > 0 else None,
+                cat_dim = batch_hidden_dim,
+                cat_embedding = batch_embedding,
+                encode_only = True,
+                **self.fcargs
+            )
+        elif self.encoder_type == EncoderType.TABNET:
+            self.encoder = TabNetEncoder(
+                input_dim = self.in_dim,
+                output_dim = self.n_hidden,
+                n_d = self.n_hidden,
+            )
 
         # The latent cell representation z ~ Logisticnormal(0, I)
         self.z_mean_fc = nn.Linear(self.n_hidden, self.n_latent)
@@ -952,7 +965,12 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 X = self._normalize_data(X, after=1e4, copy=True)
             if self.log_variational:
                 X = torch.log(1+X)
-        q = self.encoder.encode(torch.hstack([X,libsize.unsqueeze(1)])) if self.encode_libsize else self.encoder.encode(X)
+        if self.encoder_type == EncoderType.SAE:
+            q = self.encoder.encode(torch.hstack([X,libsize.unsqueeze(1)])) if self.encode_libsize else self.encoder.encode(X)
+        elif self.encoder_type == EncoderType.TABNET:
+            steps_output, M_loss = self.encoder(torch.hstack([X,libsize.unsqueeze(1)])) if self.encode_libsize else self.encoder(X)
+            q = torch.sum(torch.stack(steps_output, dim=0), dim=0)
+            
         q_mu = self.z_mean_fc(q)
         q_var = torch.exp(self.z_var_fc(q)) + eps
         z = Normal(q_mu, q_var.sqrt()).rsample()
@@ -1174,7 +1192,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     else:
                         X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = future.result()
 
-                    future = executor.submit(self._prepare_batch, X_test[b+1])
+                    if b+1 < len(X_test):
+                        future = executor.submit(self._prepare_batch, X_test[b+1])
 
                     H, R, L = self.forward(
                         X,
@@ -1361,7 +1380,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         future_dict.pop(b)
 
                     for fb in range(b+1, b+1+n_concurrent_batch):
-                        future_dict[fb] = executor.submit(self._prepare_batch, X_train[fb])
+                        if fb < len(X_train):
+                            future_dict[fb] = executor.submit(self._prepare_batch, X_train[fb])
 
                     H, R, L = self.forward(
                         X,
@@ -1486,7 +1506,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 else:
                     X, _, batch_index, _, _, _, _ = future.result()
                 
-                future = executor.submit(self._prepare_batch, X[e+1])
+                if e+1 < len(X):
+                    future = executor.submit(self._prepare_batch, X[e+1])
 
                 H = self.encode(X, batch_index if batch_index != None else None)
                 prediction = H.get('prediction', self.fc(H['z']))
@@ -1540,7 +1561,6 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
         return predictions
 
-
     @torch.no_grad()
     def get_latent_embedding(
         self,
@@ -1562,30 +1582,22 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             pbar = get_tqdm()(
                 X, 
                 desc="Latent Embedding", 
-                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}' if not is_notebook() else '',
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
                 position=0, 
                 leave=True
             )
 
-        X = list(X)
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = None
-            for e, batch_indices in enumerate(X):
-                if future is None:
-                    X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(batch_indices)
-                else:
-                    X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = future.result()
-                
-                future = executor.submit(self._prepare_batch, X[e+1])
+        for x in X:
+            X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(x)
 
-                H = self.encode(X, batch_index if batch_index != None else None)
-                if isinstance(latent_key, str):
-                    Zs.append(H[latent_key].detach().cpu().numpy())
-                elif isinstance(latent_key, Iterable):
-                    for i in range(len(latent_key)):
-                        Zs[i].append(H[latent_key[i]].detach().cpu().numpy())
-                if show_progress:
-                    pbar.update(1)
+            H = self.encode(X, batch_index if batch_index != None else None)
+            if isinstance(latent_key, str):
+                Zs.append(H[latent_key].detach().cpu().numpy())
+            elif isinstance(latent_key, Iterable):
+                for i in range(len(latent_key)):
+                    Zs[i].append(H[latent_key[i]].detach().cpu().numpy())
+            if show_progress:
+                pbar.update(1)
         if show_progress:
             pbar.close()
         if isinstance(latent_key, str):
@@ -1604,37 +1616,27 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             pbar = get_tqdm()(
                 X, 
                 desc="Reconstructing gene expression", 
-                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}' if not is_notebook() else '',
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
                 position=0, 
                 leave=True
             )
 
-        X = list(X)
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = None
-            for e, batch_indices in enumerate(X):
-                if future is None:
-                    X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(batch_indices)
-                else:
-                    X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = future.result()
-                
-                future = executor.submit(self._prepare_batch, X[e+1])
+        for x in X:
+            X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(x)
 
-                _,R,_ = self.forward(
-                    X,
-                    lib_size,
-                    batch_index,
-                    label_index,
-                    additional_label_index,
-                    additional_batch_index,
-                    P,
-                )
-                Zs.append(R[k].detach().cpu().numpy())
-                if show_progress:
-                    pbar.update(1)
+            _,R,_ = self.forward(
+                X,
+                lib_size,
+                batch_index,
+                label_index,
+                additional_label_index,
+                additional_batch_index,
+                P,
+            )
+            Zs.append(R[k].detach().cpu().numpy())
+            if show_progress:
+                pbar.update(1)
         return np.vstack(Zs)[self._shuffle_indices]
-
-
     def to(self, device:str):
         super(scAtlasVAE, self).to(device)
         self.device=device

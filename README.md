@@ -74,6 +74,10 @@ If you find scAtlasVAE useful for your research, please cite our paper:
 
 Xue, Z., Wu, L., Tian, R. *et al.* (2024). Integrative mapping of human CD8+ T cells in inflammation and cancer. *Nature Methods*. [DOI: 10.1038/s41592-024-02530-0](https://doi.org/10.1038/s41592-024-02530-0)
 
+## Link
+
+Please visit our <a href='https://huarc.net/v2/atlas/'>huARdb website</a>
+
 ## Change Log
 
 ### 1.0.6a2 (2024-10-31)

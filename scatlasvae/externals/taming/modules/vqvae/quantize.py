@@ -22,7 +22,7 @@ class VectorQuantizer(nn.Module):
     # a fix and use legacy=False to apply that fix. VectorQuantizer2 can be
     # used wherever VectorQuantizer has been used before and is additionally
     # more efficient.
-    def __init__(self, n_e, e_dim, beta):
+    def __init__(self, n_e, e_dim, beta=1):
         super(VectorQuantizer, self).__init__()
         self.n_e = n_e
         self.e_dim = e_dim
@@ -42,6 +42,10 @@ class VectorQuantizer(nn.Module):
             2. flatten input to (B*H*W,C)
         """
         # reshape z -> (batch, height, width, channel) and flatten
+        flag = False
+        if len(z.shape) == 2:
+            flag = True
+            z = z[:,None,None,:]
         z = z.permute(0, 2, 3, 1).contiguous()
         z_flattened = z.view(-1, self.e_dim)
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
@@ -86,7 +90,8 @@ class VectorQuantizer(nn.Module):
 
         # reshape back to match original input shape
         z_q = z_q.permute(0, 3, 1, 2).contiguous()
-
+        if flag:
+            z_q = z_q[:,0,0,:]
         return z_q, loss, (perplexity, min_encodings, min_encoding_indices)
 
     def get_codebook_entry(self, indices, shape):
@@ -218,7 +223,7 @@ class VectorQuantizer2(nn.Module):
     # NOTE: due to a bug the beta term was applied to the wrong term. for
     # backwards compatibility we use the buggy version by default, but you can
     # specify legacy=False to fix it.
-    def __init__(self, n_e, e_dim, beta, remap=None, unknown_index="random",
+    def __init__(self, n_e, e_dim, beta=1, remap=None, unknown_index="random",
                  sane_index_shape=False, legacy=True):
         super().__init__()
         self.n_e = n_e
@@ -269,6 +274,10 @@ class VectorQuantizer2(nn.Module):
         return back.reshape(ishape)
 
     def forward(self, z, temp=None, rescale_logits=False, return_logits=False):
+        flag = False
+        if len(z.shape) == 2:
+            flag = True
+            z = z[:,None,None,:]
         assert temp is None or temp==1.0, "Only for interface compatible with Gumbel"
         assert rescale_logits==False, "Only for interface compatible with Gumbel"
         assert return_logits==False, "Only for interface compatible with Gumbel"
@@ -309,6 +318,9 @@ class VectorQuantizer2(nn.Module):
             min_encoding_indices = min_encoding_indices.reshape(
                 z_q.shape[0], z_q.shape[2], z_q.shape[3])
 
+        if flag:
+            z_q = z_q[:,0,0,:]
+            
         return z_q, loss, (perplexity, min_encodings, min_encoding_indices)
 
     def get_codebook_entry(self, indices, shape):

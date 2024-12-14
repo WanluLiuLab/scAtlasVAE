@@ -13,10 +13,7 @@ import numpy as np
 from pathlib import Path
 import pandas as pd
 import scanpy as sc
-import einops
-import numpy as np
 from scipy.sparse import issparse
-from sklearn.utils import class_weight
 # import anndata_tensorstore as ats
 
 
@@ -1486,7 +1483,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         :param show_progress: bool. Show progress bar of total progress.
         """
         self.eval()
-        X = self.as_dataloader(subset_indices = list(range(len(self._dataset))), shuffle=False, n_per_batch=n_per_batch)
+        X = self.as_dataloader(
+            subset_indices = list(range(len(self._dataset))), 
+            shuffle=False, 
+            n_per_batch=n_per_batch
+        )
         predictions = []
         additional_predictions = []
         if show_progress:
@@ -1497,18 +1498,10 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 position=0, 
                 leave=True
             )
-        X = list(X)
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = None
-            for e, batch_indices in enumerate(X):
-                if future is None:
-                    X, _, batch_index, _, _, _, _ = self._prepare_batch(batch_indices)
-                else:
-                    X, _, batch_index, _, _, _, _ = future.result()
-                
-                if e+1 < len(X):
-                    future = executor.submit(self._prepare_batch, X[e+1])
 
+        for x in X:
+                X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size = self._prepare_batch(x)
+            
                 H = self.encode(X, batch_index if batch_index != None else None)
                 prediction = H.get('prediction', self.fc(H['z']))
                 predictions.append(prediction.detach().cpu())
@@ -1582,7 +1575,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             pbar = get_tqdm()(
                 X, 
                 desc="Latent Embedding", 
-                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}' if not is_notebook() else '',
                 position=0, 
                 leave=True
             )
@@ -1616,7 +1609,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             pbar = get_tqdm()(
                 X, 
                 desc="Reconstructing gene expression", 
-                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}',
+                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}' if not is_notebook() else '',
                 position=0, 
                 leave=True
             )
@@ -1796,7 +1789,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
     def _prepare_batch(self, batch_indices):
         P = None
-        batch_data = self._dataset[batch_indices.cpu().numpy()]
+        batch_data = self._dataset[batch_indices.cpu().numpy().astype(int)]
         batch_index, label_index, additional_label_index, additional_batch_index = None, None, None, None
         
         if self.low_memory_initialization:

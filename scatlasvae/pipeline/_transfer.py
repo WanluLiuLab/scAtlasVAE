@@ -24,7 +24,9 @@ def run_transfer(
     """
     state_dict = torch.load(path_to_state_dict, map_location=device)
     # compatible with scatlasvae version 0.0.1
-    
+    if 'new_adata_key' in state_dict['model_config']:
+        state_dict['model_config']['unlabel_key'] = state_dict['model_config'].pop('new_adata_key')
+        
     scAtlasVAE.setup_anndata(
         adata_query,
         path_to_state_dict=path_to_state_dict,

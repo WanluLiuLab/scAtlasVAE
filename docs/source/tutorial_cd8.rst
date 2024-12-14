@@ -21,7 +21,7 @@ Step1: Load the reference and query data
 
   # If the number of genes in the query data is different from the reference data:
 
-  adata_query = scatlasvae.pp.subset_adata_by_genes_fill_zeros(
+  adata_query = scatlasvae.pp._preprocess.subset_adata_by_genes_fill_zeros(
     adata_query, adata_reference.var_names
   )
 

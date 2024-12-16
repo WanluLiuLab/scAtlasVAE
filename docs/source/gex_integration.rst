@@ -117,7 +117,7 @@ After training the multi-batch and multi-label model, one can use :py:method:`sc
   predictions.columns = list(map(lambda x: 'predicted_'+x, predictions.columns))
   adata.obs = adata.obs.join(predictions)
 
-  predictions_logits = vae_model.predict_batch(return_pandas=False)
+  predictions_logits = vae_model.predict_labels(return_pandas=False)
   adata.uns['predictions_logits'] = predictions_logits
 
 

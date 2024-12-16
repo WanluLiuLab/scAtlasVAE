@@ -142,7 +142,7 @@ guaranteed to be the same as the model trained on the reference dataset alone.
   predictions.columns = list(map(lambda x: 'predicted_'+x, predictions.columns))
   merged_adata.obs = merged_adata.obs.join(predictions)
 
-  predictions_logits = model.predict_batch(return_pandas=False)
+  predictions_logits = model.predict_labels(return_pandas=False)
   merged_adata.uns['predictions_logits'] = predictions_logits
 
   count, fig = scatlasvae.ut.cell_type_alignment(

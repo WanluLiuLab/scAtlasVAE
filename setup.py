@@ -45,9 +45,20 @@ setuptools.setup(
     extras_require=dict(
         gpu=[
             "pynvml==11.5.0",
-            "nvidia-ml-py3==7.352.0",
+            "nvidia-ml-py3==7.352.0", 
+            "numpy==1.26.4",
+            "numba==0.59.1",
+            "cudf-cu12==23.*",
+            "dask-cudf-cu12==23.*",
+            "cuml-cu12==23.*", 
+            "cugraph-cu12==23.*",
+            "nvidia-cuda-runtime-cu12==12.4.*"
         ]
+        
     ),
-    dependency_links=['https://download.pytorch.org/whl/torch_stable.html'],
+    dependency_links=[
+        'https://download.pytorch.org/whl/torch_stable.html',
+        'https://pypi.nvidia.com'
+    ],
     include_package_data=False,
 )

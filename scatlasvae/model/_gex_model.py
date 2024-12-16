@@ -432,11 +432,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         """
         original_state_dict = self.state_dict()
         warned = False
-        ignored_keys = []
+        ignored_keys = {}
         for k,v in state_dict.items():
             if k not in original_state_dict.keys():
                 mt(f"Warning: {k} not found in the model. Ignoring {k} in the provided state dict.")
-                ignored_keys.append(k)
+                ignored_keys[k] = v
             elif v.shape != original_state_dict[k].shape:
                 mw(f"Warning: shape of {k} does not match. \n" + \
                     ' '*40 + "\tOriginal:" + f" {original_state_dict[k].shape},\n" + \
@@ -450,6 +450,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         for i in ignored_keys:
             state_dict.pop(i)
         self.load_state_dict(state_dict)
+        for k,v in ignored_keys.items():
+            state_dict[k] = v
 
     def get_config(self):
         """

@@ -55,6 +55,7 @@ scAtlasVAE was tested on NVIDIA RTX2080Ti, RTX3090Ti, A10, A100, and A800 device
 
 ## Usage
 
+### Basic Usage
 ```python
 import scatlasvae
 
@@ -67,6 +68,18 @@ vae_model.fit()
 ```
 
 See complete usage guidance at [Integration tutorial](https://scatlasvae.readthedocs.io/en/latest/gex_integration.html)
+
+### Common Issues
+1. During `model.fit()`, the following is are reported.
+```
+RuntimeError: CUDA error: CUBLAS_STATUS_INVALID_VALUE when calling `cublasSgemm( handle, opa, opb, m, n, k, &alpha, a, lda, b, ldb, &beta, c, ldc)
+```
+**Solution**: The cublas library is incompatible with your environment. Please use `pip uninstall nvidia-cublas-cu11` to uninstall the cublas library
+
+2. `nan` reported during `model.fit()`
+Please ensure all cells in your adata have non-zero total-count by checking `any(np.array(adata.X.sum(1) > 0).flatten())`. Also try to use a smaller learning rate during `model.fit`
+
+
 
 ## Cite
 

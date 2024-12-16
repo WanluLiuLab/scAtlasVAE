@@ -132,6 +132,7 @@ guaranteed to be the same as the model trained on the reference dataset alone.
     device='cuda:0', 
     batch_hidden_dim=8
   )
+  model.fit()
 
   predictions = model.predict_labels(
     return_pandas=True,

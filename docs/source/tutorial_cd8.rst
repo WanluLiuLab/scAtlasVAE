@@ -52,6 +52,6 @@ Step3: Transfer the higher-resolution cell type annotation for Tex
   scatlasvae.pipeline.run_transfer(
     adata_reference_tex,
     adata_query_tex,
-    "huARdb_v2_GEX.CD8.Tex.hvg4k.supervised.model", # available at https://zenodo.org/records/12542577/files/huARdb_v2_GEX.CD8.Tex.hvg4k.supervised.model
+    "huARdb_v2_GEX.CD8.Tex.hvg4k.supervised.model", # available at https://zenodo.org/records/13382785/files/huARdb_v2_GEX.CD8.hvg4k.Tex.supervised.model
     label_key = 'cell_subtype_4'
   )

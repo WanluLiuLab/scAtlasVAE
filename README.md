@@ -69,6 +69,21 @@ vae_model.fit()
 
 See complete usage guidance at [Integration tutorial](https://scatlasvae.readthedocs.io/en/latest/gex_integration.html)
 
+## Experimental Features
+
+### Low Memory Initialization
+
+Faster initialization of the scAtlasVAE model with low memory usage. This feature is useful for large-scale datasets with limited memory resources. Slightly increase training time.
+
+```python
+vae_model = scatlasvae.model.scAtlasVAE(
+    adata,
+    batch_key="sample_name",
+    low_memory_initialization=True
+)
+```
+
+
 ### Common Issues
 1. During `model.fit()`, the following is are reported.
 ```

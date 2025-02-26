@@ -23,7 +23,7 @@ copyright = '2024, Ziwei Xue'
 author = 'Ziwei Xue'
 
 # The full version, including alpha/beta/rc tags
-release = 'alpha'
+release = 'latest'
 
 
 # -- General configuration ---------------------------------------------------

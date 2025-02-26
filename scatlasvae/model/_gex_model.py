@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 import scanpy as sc
 from scipy.sparse import issparse
-# import anndata_tensorstore as ats
+import chunked_anndata as ca
 
 
 # Built-in
@@ -55,7 +55,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     VAE model for atlas-level integration and label transfer
 
     :param adata: AnnData. If provided, initialize the model with the adata.
-    :anndata_tensorstore_path. Path to the AnndataTensorStore. Default: None.
+    :chunked_adata_path. Path to the AnndataTensorStore. Default: None.
     :param use_layer: Optional[str]. Use the layer in the adata. Default: None
     :param hidden_stacks: List[int]. Number of hidden units in each layer. Default: [128] (one hidden layer with 128 units)
     :param n_latent: int. Number of latent dimensions. Default: 10
@@ -98,7 +98,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     """
     def __init__(self, *,
        adata: Optional[sc.AnnData] = None,
-       anndata_tensorstore_path: Optional[str] = None,
+       chunked_adata_path: Optional[str] = None,
        anndata_tensorstore_var_names: Optional[Iterable[str]] = None,
        use_layer: Optional[str] = None,
        hidden_stacks: List[int] = [128],
@@ -143,23 +143,25 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         if device is None:
             device = get_default_device()
         
-        if anndata_tensorstore_path is None and adata is None:
-            raise ValueError("Please provide either anndata or anndata_tensorstore_path")
-        elif anndata_tensorstore_path is not None and adata is not None:
-            raise ValueError("Please provide either anndata or anndata_tensorstore_path, not both")
-        elif anndata_tensorstore_path is not None:
+        if chunked_adata_path is None and adata is None:
+            raise ValueError("Please provide either anndata or chunked_adata_path")
+        elif chunked_adata_path is not None and adata is not None:
+            raise ValueError("Please provide either anndata or chunked_adata_path, not both")
+        elif chunked_adata_path is not None:
             low_memory_initialization = True
-            var = pd.read_parquet(os.path.join(anndata_tensorstore_path, ats.ATS_FILE_NAME.var))
-            obs = pd.read_parquet(os.path.join(anndata_tensorstore_path, ats.ATS_FILE_NAME.obs))
+            var = pd.read_parquet(os.path.join(chunked_adata_path, ca.ATS_FILE_NAME.var))
+            obs = pd.read_parquet(os.path.join(chunked_adata_path, ca.ATS_FILE_NAME.obs))
+            config = json.load(open(os.path.join(chunked_adata_path, ca.ATS_FILE_NAME.config)))
             if constrain_latent_key is not None:
-                obsm = ats._ext.load_np_array_from_tensorstore(
-                    os.path.join(anndata_tensorstore_path, ats.ATS_FILE_NAME.obsm, constrain_latent_key)
+                obsm = ca._ext.load_np_array_from_tensorstore(
+                    os.path.join(chunked_adata_path, ca.ATS_FILE_NAME.obsm, constrain_latent_key)
                 )
             self.adata = sc.AnnData(
                 obs=obs,
                 obsm={
                     constrain_latent_key: obsm
                 } if constrain_latent_key is not None else None,
+                uns={"config": config}
             )
         else:
             self.adata = adata
@@ -183,7 +185,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         super(scAtlasVAE, self).__init__()
 
         
-        self.anndata_tensorstore_path = anndata_tensorstore_path
+        self.chunked_adata_path = chunked_adata_path
         self.anndata_tensorstore_var_names = anndata_tensorstore_var_names
         self.anndata_tensorstore_var_indices = None
         if anndata_tensorstore_var_names is not None:
@@ -268,7 +270,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         self.constrain_n_label = constrain_n_label
         self.constrain_n_batch = constrain_n_batch
         self.low_memory_initialization = low_memory_initialization
-        if self.low_memory_initialization and self.anndata_tensorstore_path is None:
+        if self.low_memory_initialization and self.chunked_adata_path is None:
             mw(
                 "low_memory_initialization is set to True. \n" + \
                 " "*40 + "This will reduce the memory usage during initialization,\n" + \
@@ -370,12 +372,13 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             else:
                 decoder_n_cat_list = None
 
-        self.decoder_n_cat_list = decoder_n_cat_list
+        # TODO: Check if this is ok: add 1 to the decoder_n_cat_list for dummy variable
+        self.decoder_n_cat_list = list(map(lambda x: x + 1, decoder_n_cat_list))
 
         self.decoder = FCLayer(
             in_dim = self.n_latent,
             out_dim = self.n_hidden,
-            n_cat_list = decoder_n_cat_list,
+            n_cat_list = self.decoder_n_cat_list,
             cat_dim = batch_hidden_dim,
             cat_embedding = batch_embedding,
             use_layer_norm=False,
@@ -416,7 +419,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
 
     def __repr__(self):
-        return f'{Colors.ORANGE}VAEModel{Colors.NC} object containing:\n' + \
+        return f'{Colors.ORANGE}scAtlasVAEModel{Colors.NC} object containing:\n' + \
             f'    {Colors.GREEN}adata{Colors.NC}: {self.adata}\n' + \
             f'    {Colors.GREEN}in_dim{Colors.NC}: {Colors.CYAN}{self.in_dim}{Colors.NC}\n' + \
             f'    {Colors.GREEN}n_hidden{Colors.NC}: {Colors.CYAN}{self.n_hidden}{Colors.NC}\n' + \
@@ -1425,7 +1428,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
                     epoch_total_loss += loss.item()
                     optimizer.zero_grad()
-                    loss.backward()
+                    if not torch.isnan(loss).any():
+                        loss.backward()
+                    else:
+                        mw("nan loss detected. skipping backward and optimizer step for this batch")
+                        continue
                     optimizer.step()
                     pbar.set_postfix({
                         'rec': '{:.2e}'.format(loss_record["epoch_reconstruction_loss"]),
@@ -1795,25 +1802,45 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         batch_index, label_index, additional_label_index, additional_batch_index = None, None, None, None
         
         if self.low_memory_initialization:
-            if self.anndata_tensorstore_path is not None:
+            if self.chunked_adata_path is not None:
                 if self.use_layer is None:
-                    X = ats._ext.load_X(
-                        os.path.join(self.anndata_tensorstore_path, ats.ATS_FILE_NAME.X),
-                        obs_indices = self._shuffled_indices_inverse[
-                            batch_indices.cpu().numpy()
-                        ],
-                        var_indices = self.anndata_tensorstore_var_indices,
-                        to_sparse=False
-                    )
+                    if self.adata.uns['config']['sparse_storage']:
+                        X = ca._ext.load_chunked_sparse_matrix_from_tensorstore(
+                            os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.X),
+                            obs_indices = self._shuffled_indices_inverse[
+                                batch_indices.cpu().numpy()
+                            ],
+                            var_indices = self.anndata_tensorstore_var_indices,
+                            chunk_size = self.adata.uns['config']['chunk_size']
+                        )
+                    else:
+                        X = ca._ext.load_X(
+                            os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.X),
+                            obs_indices = self._shuffled_indices_inverse[
+                                batch_indices.cpu().numpy()
+                            ],
+                            var_indices = self.anndata_tensorstore_var_indices,
+                            to_sparse=False
+                        )
                 else:
-                    X = ats._ext.load_X(
-                        os.path.join(self.anndata_tensorstore_path, ats.ATS_FILE_NAME.layers, self.use_layer),
-                        obs_indices = self._shuffled_indices_inverse[
-                            batch_indices.cpu().numpy()
-                        ],
-                        var_indices = self.anndata_tensorstore_var_indices,
-                        to_sparse=False
-                    )
+                    if self.adata.uns['config']['sparse_storage']:
+                        X = ca._ext.load_chunked_sparse_matrix_from_tensorstore(
+                            os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.layers, self.use_layer),
+                            obs_indices = self._shuffled_indices_inverse[
+                                batch_indices.cpu().numpy()
+                            ],
+                            var_indices = self.anndata_tensorstore_var_indices,
+                            chunk_size = self.adata.uns['config']['chunk_size']
+                        )
+                    else:
+                        X = ca._ext.load_X(
+                            os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.layers, self.use_layer),
+                            obs_indices = self._shuffled_indices_inverse[
+                                batch_indices.cpu().numpy()
+                            ],
+                            var_indices = self.anndata_tensorstore_var_indices,
+                            to_sparse=False
+                        )
             else:
                 if self.use_layer is None:
                     X = self.adata.X[

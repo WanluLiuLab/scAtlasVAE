@@ -21,14 +21,13 @@ class scAtlasVQVAE(scAtlasVAE):
         self.quantitizer.weight.data.uniform_(0,0)
 
         self.to(self.device)
-        
+
         pretrained_state_dict = kwargs.get("pretrained_state_dict", None)
         if pretrained_state_dict is not None:
             if isinstance(pretrained_state_dict, str):
                 pretrained_state_dict = torch.load(pretrained_state_dict)['model_state_dict']
             self.partial_load_state_dict(pretrained_state_dict)
-            
-            
+
     def encode(
         self, 
         X: torch.Tensor, 
@@ -48,7 +47,7 @@ class scAtlasVQVAE(scAtlasVAE):
         q_mu = self.z_mean_fc(q)
         q_var = torch.exp(self.z_var_fc(q)) + eps
         z = Normal(q_mu, q_var.sqrt()).rsample()
-        
+
         prediction = self.fc(q_mu)
 
         z_vq = (self.quantitizer.weight * F.softmax(prediction, dim=1).unsqueeze(-1)).sum(1)
@@ -82,15 +81,30 @@ class scAtlasVQVAE(scAtlasVAE):
         mean = torch.zeros_like(q_mu)
         scale = torch.ones_like(q_var)
         kldiv_loss = kld(Normal(q_mu, q_var.sqrt()), Normal(mean, scale)).sum(dim = 1)
-        
+
         prediction_loss = torch.tensor(0., device=self.device)
         additional_prediction_loss = torch.tensor(0., device=self.device)
-        
-        
-        R = self.decode(H, lib_size, batch_index, label_index, additional_batch_index)
-        
-        r = self.decode({"z":H['z_vq']},lib_size, batch_index, label_index, additional_batch_index)
 
+        R = self.decode(
+            H, 
+            lib_size, 
+            batch_index, 
+            label_index, 
+            additional_batch_index
+        )
+
+        # TODO: check if this is ok: use dummy batch variables for decoding 
+        r = self.decode(
+            {"z": H["z_vq"]},
+            lib_size,
+            torch.ones(batch_index.shape, device=self.device) * self.n_batch,
+            label_index,
+            [
+                torch.ones(additional_batch_index[e].shape, device=self.device)
+                * self.n_additional_batch[e]
+                for e in range(len(additional_batch_index))
+            ],
+        )
 
         reconstruction_loss = LossFunction.zinb_reconstruction_loss(
                 X,
@@ -106,7 +120,6 @@ class scAtlasVQVAE(scAtlasVAE):
                 gate_logits = r['px_rna_dropout'],
                 reduction = reduction
         )
-        
         vq_loss = torch.mean((H['z_vq'].detach()-H['z'])**2) + \
             torch.mean((H['z_vq'] - H['z'].detach()) ** 2)
 
@@ -241,7 +254,7 @@ class scAtlasVQVAE(scAtlasVAE):
                 lr, weight_decay=weight_decay)
         else:
             optimizer = optim.AdamW(optimizer_parameters, lr, weight_decay=weight_decay)
-            
+
         vq_optimizer = optim.AdamW(
             self.quantitizer.parameters(),
             lr * 10,  weight_decay=weight_decay
@@ -287,7 +300,6 @@ class scAtlasVQVAE(scAtlasVAE):
         epoch_constraint_loss_list = []
         epoch_vq_loss_list = []
 
-
         for epoch in range(1, max_epoch+1):
             self._trained = True
             pbar.desc = "Epoch {}".format(epoch)
@@ -308,7 +320,7 @@ class scAtlasVQVAE(scAtlasVAE):
                 random_seed=random_seed,
                 subset_indices=subset_indices
             )
-            
+
             if self.n_label > 0 and epoch == max_epoch - pred_last_n_epoch:
                 mt("saving transcriptome only state dict")
                 self.gene_only_state_dict = deepcopy(self.state_dict())
@@ -366,21 +378,20 @@ class scAtlasVQVAE(scAtlasVAE):
                     epoch_mmd_loss += avg_mmd_loss.item()
                     epoch_gate_loss += avg_gate_loss.item()
                     epoch_vq_loss += vq_loss.item()
-                    
+
                     if self.n_label > 0:
                         epoch_prediction_loss += prediction_loss.sum().item()
-                    
+
                     if epoch > max_epoch - pred_last_n_epoch:
                         loss = avg_reconstruction_loss + avg_kldiv_loss * kl_weight + avg_mmd_loss + (prediction_loss.sum() + additional_prediction_loss.sum()) / (len(self.n_additional_label) if self.n_additional_label is not None else 0 + 1) + avg_gate_loss
                     else:
                         loss = avg_reconstruction_loss + avg_kldiv_loss * kl_weight + avg_mmd_loss + avg_gate_loss
-                            
+
                     if epoch > max_epoch - vq_last_n_epoch:
                         vqloss = vq_loss * vq_weight + avg_reconstruction_vq_loss
                         vq_optimizer.zero_grad()
                         vqloss.backward(retain_graph=True)
                         vq_optimizer.step()
-
 
                     if self.constrain_latent_embedding:
                         loss += constrain_weight * L['latent_constrain_loss']
@@ -433,4 +444,3 @@ class scAtlasVQVAE(scAtlasVAE):
             epoch_constraint_loss_list=epoch_constraint_loss_list,
             epoch_vq_loss_list=epoch_vq_loss_list
         )
-    

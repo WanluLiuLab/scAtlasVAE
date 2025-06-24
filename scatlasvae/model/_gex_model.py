@@ -27,7 +27,7 @@ from typing import Mapping, Union, Iterable, Tuple, Optional, Mapping, Dict
 from concurrent.futures import ThreadPoolExecutor
 import os
 import warnings
-
+import threading
 
 # Package
 from ._primitives import *
@@ -139,6 +139,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
        device: Optional[Union[str, torch.device]] = None,
        pretrained_state_dict: Union[str, Optional[Mapping[str, torch.Tensor]]] = None,
        low_memory_initialization: bool = False,
+       _shuffle_dataset: bool = True
     ) -> None:
         if device is None:
             device = get_default_device()
@@ -279,6 +280,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
             )
         self.device=device
 
+        self._shuffle_dataset = _shuffle_dataset
         self.initialize_dataset()
 
         self.batch_embedding = batch_embedding
@@ -417,6 +419,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                 pretrained_state_dict = torch.load(pretrained_state_dict)['model_state_dict']
             self.partial_load_state_dict(pretrained_state_dict)
 
+        self._prepare_batch_lock = threading.Lock()
 
     def __repr__(self):
         return f'{Colors.ORANGE}scAtlasVAEModel{Colors.NC} object containing:\n' + \
@@ -906,7 +909,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     
         
         _shuffle_indices = list(range(len(_dataset)))
-        np.random.shuffle(_shuffle_indices)
+        if self._shuffle_dataset:
+            np.random.shuffle(_shuffle_indices)
         self._dataset = np.array([_dataset[i] for i in _shuffle_indices], dtype=object)
 
         self._shuffle_indices = np.array(
@@ -1246,6 +1250,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
         constrain_weight: float = 1.,
         optimizer_parameters: Iterable = None,
         validation_split: float = .2,
+        validation_skip: bool = False,
         lr: bool = 5e-5,
         lr_schedule: bool = False,
         lr_factor: float = 0.6,
@@ -1384,7 +1389,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
                     for fb in range(b+1, b+1+n_concurrent_batch):
                         if fb < len(X_train):
-                            future_dict[fb] = executor.submit(self._prepare_batch, X_train[fb])
+                            if fb not in future_dict:                         
+                                future_dict[fb] = executor.submit(self._prepare_batch, X_train[fb])
 
                     H, R, L = self.forward(
                         X,
@@ -1446,7 +1452,8 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         'step': f'{b} / {len(X_train)}',
                         'step_time': '{:.2f}s/{}'.format(avg_step_time, epoch_left_time),
                     })
-            loss_record = self.calculate_metric(X_test, kl_weight, pred_weight, mmd_weight, reconstruction_reduction)
+            if not validation_skip:
+                loss_record = self.calculate_metric(X_test, kl_weight, pred_weight, mmd_weight, reconstruction_reduction)
             if lr_schedule:
                 scheduler.step(loss_record["epoch_total_loss"])
             pbar.set_postfix({
@@ -1775,6 +1782,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
         if method == 'knn':
             from sklearn.neighbors import KNeighborsClassifier
+
             knn = KNeighborsClassifier(**method_kwargs)
             knn.fit(
                 self.adata.obsm[use_rep][indices], self.adata.obs.loc[indices, label_key]
@@ -1801,346 +1809,348 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
         )
 
-    def _prepare_batch(self, batch_indices):
-        P = None
-        batch_data = self._dataset[batch_indices.cpu().numpy().astype(int)]
-        batch_index, label_index, additional_label_index, additional_batch_index = None, None, None, None
-        
-        if self.low_memory_initialization:
-            if self.chunked_adata_path is not None:
-                if self.use_layer is None:
-                    if self.adata.uns['config']['sparse_storage']:
-                        X = ca._ext.load_chunked_sparse_matrix_from_tensorstore(
-                            os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.X),
-                            obs_indices = self._shuffled_indices_inverse[
-                                batch_indices.cpu().numpy()
-                            ],
-                            var_indices = self.anndata_tensorstore_var_indices,
-                            chunk_size = self.adata.uns['config']['chunk_size']
-                        )
-                    else:
-                        X = ca._ext.load_X(
-                            os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.X),
-                            obs_indices = self._shuffled_indices_inverse[
-                                batch_indices.cpu().numpy()
-                            ],
-                            var_indices = self.anndata_tensorstore_var_indices,
-                            to_sparse=False
-                        )
-                else:
-                    if self.adata.uns['config']['sparse_storage']:
-                        X = ca._ext.load_chunked_sparse_matrix_from_tensorstore(
-                            os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.layers, self.use_layer),
-                            obs_indices = self._shuffled_indices_inverse[
-                                batch_indices.cpu().numpy()
-                            ],
-                            var_indices = self.anndata_tensorstore_var_indices,
-                            chunk_size = self.adata.uns['config']['chunk_size']
-                        )
-                    else:
-                        X = ca._ext.load_X(
-                            os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.layers, self.use_layer),
-                            obs_indices = self._shuffled_indices_inverse[
-                                batch_indices.cpu().numpy()
-                            ],
-                            var_indices = self.anndata_tensorstore_var_indices,
-                            to_sparse=False
-                        )
-            else:
-                if self.use_layer is None:
-                    X = self.adata.X[
-                        self._shuffled_indices_inverse[
-                            batch_indices.cpu().numpy()
-                        ]
-                    ]
-                else:
-                    X = self.adata.layers[self.use_layer][
-                        self._shuffled_indices_inverse[
-                            batch_indices.cpu().numpy()
-                        ]
-                    ]
-
-            if self.n_batch > 0 or self.n_label > 0:
-                if not (isinstance(batch_data, Iterable) and len(batch_data) > 1):
-                    raise ValueError("batch_data is not iterable or has only one element")
-                if self.n_additional_batch_ is not None:
-                    if self.n_batch > 0 and self.n_label > 0 and self.n_additional_label is not None:
-                        if self.constrain_latent_embedding:
-                            P, batch_index, label_index, additional_label_index, additional_batch_index = (
-                                get_k_elements(batch_data,0),
-                                get_k_elements(batch_data,1),
-                                get_k_elements(batch_data,2),
-                                get_elements(batch_data,3, len(self.n_additional_label)),
-                                get_last_k_elements(batch_data,3+len(self.n_additional_label))
-                            )
-                        else:
-                            batch_index, label_index, additional_label_index, additional_batch_index = (
-                                get_k_elements(batch_data,0),
-                                get_k_elements(batch_data,1),
-                                get_elements(batch_data,2, len(self.n_additional_label)),
-                                get_last_k_elements(batch_data,2+len(self.n_additional_label))
-                            )
-                        additional_label_index = list(np.vstack(additional_label_index).T.astype(int))
-                    elif self.n_batch > 0 and self.n_label > 0:
-                        if self.constrain_latent_embedding:
-                            P, batch_index, label_index, additional_batch_index = (
-                                get_k_elements(batch_data,0),
-                                get_k_elements(batch_data,1),
-                                get_k_elements(batch_data,2),
-                                get_last_k_elements(batch_data,3)
-                            )
-                        else:
-                            batch_index, label_index, additional_batch_index = (
-                                get_k_elements(batch_data,0),
-                                get_k_elements(batch_data,1),
-                                get_last_k_elements(batch_data,2)
-                            )
-                    elif self.n_batch > 0:
-                        if self.constrain_latent_embedding:
-                            P, batch_index, additional_batch_index = (
-                                get_k_elements(batch_data,0),
-                                get_k_elements(batch_data,1),
-                                get_last_k_elements(batch_data,2)
-                            )
-                        else:
-                            batch_index, additional_batch_index = get_k_elements(batch_data,0), get_last_k_elements(batch_data,1)
-                    elif self.n_label > 0:
-                        if self.constrain_latent_embedding:
-                            P, label_index, additional_batch_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1), get_last_k_elements(batch_data,2)
-                        else:
-                            label_index, additional_batch_index = get_k_elements(batch_data,0), get_last_k_elements(batch_data,2)
-                    additional_batch_index = list(np.vstack(additional_batch_index).T.astype(int))
-                else:
-                    if self.n_batch > 0 and self.n_label > 0 and self.n_additional_label is not None:
-                        if self.constrain_latent_embedding:
-                            P, batch_index, label_index, additional_label_index = (
-                                get_k_elements(batch_data,0),
-                                get_k_elements(batch_data,1),
-                                get_k_elements(batch_data,2),
-                                get_last_k_elements(batch_data,3)
-                            )
-                        else:
-                            batch_index, label_index, additional_label_index = (
-                                get_k_elements(batch_data,0),
-                                get_k_elements(batch_data,1),
-                                get_last_k_elements(batch_data,2)
-                            )
-                        additional_label_index = list(np.vstack(additional_label_index).T.astype(int))
-                    elif self.n_batch > 0 and self.n_label > 0:
-                        if self.constrain_latent_embedding:
-                            P, batch_index, label_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1), get_k_elements(batch_data,2)
-                        else:
-                            batch_index, label_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1)
-                    elif self.n_batch > 0:
-                        if self.constrain_latent_embedding:
-                            P, batch_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1)
-                        else:
-                            batch_index = get_k_elements(batch_data,0)
-                    elif self.n_label > 0:
-                        if self.constrain_latent_embedding:
-                            P, label_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1)
-                        else:
-                            label_index = get_k_elements(batch_data,0)
-        
-            X = torch.tensor((X.toarray() if issparse(X) else X).astype(np.float32))
-        else:
-            if self.n_batch > 0 or self.n_label > 0:
-                if not isinstance(batch_data, Iterable) and len(batch_data) > 1:
-                    raise ValueError()
-                if self.n_additional_batch_ is not None:
-                    if (
-                        self.n_batch > 0
-                        and self.n_label > 0
-                        and self.n_additional_label is not None
-                    ):
-                        if self.constrain_latent_embedding:
-                            (
-                                X,
-                                P,
-                                batch_index,
-                                label_index,
-                                additional_label_index,
-                                additional_batch_index,
-                            ) = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                                get_k_elements(batch_data, 3),
-                                get_elements(batch_data, 4, len(self.n_additional_label)),
-                                get_last_k_elements(batch_data, 4 + len(self.n_additional_label)),
-                            )
-                        else:
-                            (
-                                X,
-                                batch_index,
-                                label_index,
-                                additional_label_index,
-                                additional_batch_index,
-                            ) = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                                get_elements(batch_data, 3, len(self.n_additional_label)),
-                                get_last_k_elements(batch_data, 3 + len(self.n_additional_label)),
-                            )
-                        additional_label_index = list(
-                            np.vstack(additional_label_index).T.astype(int)
-                        )
-                    elif self.n_batch > 0 and self.n_label > 0:
-                        if self.constrain_latent_embedding:
-                            X, P, batch_index, label_index, additional_batch_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                                get_k_elements(batch_data, 3),
-                                get_last_k_elements(batch_data, 4),
-                            )
-                        else:
-                            X, batch_index, label_index, additional_batch_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                                get_last_k_elements(batch_data, 3),
-                            )
-                    elif self.n_batch > 0:
-                        if self.constrain_latent_embedding:
-                            X, P, batch_index, additional_batch_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                                get_last_k_elements(batch_data, 3),
-                            )
-                        else:
-                            X, batch_index, additional_batch_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_last_k_elements(batch_data, 2),
-                            )
-                    elif self.n_label > 0:
-                        if self.constrain_latent_embedding:
-                            X, P, label_index, additional_batch_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                                get_last_k_elements(batch_data, 3),
-                            )
-                        else:
-                            X, label_index, additional_batch_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_last_k_elements(batch_data, 2),
-                            )
-                    else:
-                        if self.constrain_latent_embedding:
-                            X, P, additional_batch_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                            )
-                        else:
-                            X, additional_batch_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                            )
-                    additional_batch_index = list(
-                        np.vstack(additional_batch_index).T.astype(int)
-                    )
-                else:
-                    if (
-                        self.n_batch > 0
-                        and self.n_label > 0
-                        and self.n_additional_label is not None
-                    ):
-                        if self.constrain_latent_embedding:
-                            X, P, batch_index, label_index, additional_label_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                                get_k_elements(batch_data, 3),
-                                get_last_k_elements(batch_data, 4),
-                            )
-                        else:
-                            X, batch_index, label_index, additional_label_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                                get_last_k_elements(batch_data, 3),
-                            )
-                        additional_label_index = list(
-                            np.vstack(additional_label_index).T.astype(int)
-                        )
-                    elif self.n_batch > 0 and self.n_label > 0:
-                        if self.constrain_latent_embedding:
-                            X, P, batch_index, label_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                                get_k_elements(batch_data, 3),
-                            )
-                        else:
-                            X, batch_index, label_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                            )
-                    elif self.n_batch > 0:
-                        if self.constrain_latent_embedding:
-                            X, P, batch_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                            )
-                        else:
-                            X, batch_index = get_k_elements(batch_data, 0), get_k_elements(batch_data, 1)
-                    elif self.n_label > 0:
-                        if self.constrain_latent_embedding:
-                            X, P, label_index = (
-                                get_k_elements(batch_data, 0),
-                                get_k_elements(batch_data, 1),
-                                get_k_elements(batch_data, 2),
-                            )
-                        else:
-                            X, label_index = get_k_elements(batch_data, 0), get_k_elements(batch_data, 1)
-            else:
-                if self.constrain_latent_embedding:
-                    X, P = get_k_elements(batch_data, 0), get_k_elements(batch_data, 1)
-                else:
-                    X = get_k_elements(batch_data, 0)
-
-            X = torch.tensor(
-                np.vstack(list(map(lambda x: x.toarray() if issparse(x) else x, X)))
-            )
-
-        if self.constrain_latent_embedding:
-            P = torch.tensor(np.vstack(P)).type(torch.FloatTensor).to(self.device)
-        if self.n_label > 0:
-            label_index = torch.tensor(label_index)
-            if not isinstance(label_index, torch.FloatTensor):
-                label_index = label_index.type(torch.FloatTensor)
-            label_index = label_index.to(self.device).unsqueeze(1)
-        if self.n_batch > 0:
-            batch_index = torch.tensor(batch_index)
-            if not isinstance(batch_index, torch.FloatTensor):
-                batch_index = batch_index.type(torch.FloatTensor)
-            batch_index = batch_index.to(self.device).unsqueeze(1)
-        if self.n_additional_label is not None:
-            for i in range(len(additional_label_index)):
-                additional_label_index[i] = torch.tensor(additional_label_index[i])
-                if not isinstance(additional_label_index[i], torch.FloatTensor):
-                    additional_label_index[i] = additional_label_index[i].type(torch.FloatTensor)
-                additional_label_index[i] = additional_label_index[i].to(self.device).unsqueeze(1)
-        if self.n_additional_batch_ is not None:
-            for i in range(len(additional_batch_index)):
-                additional_batch_index[i] = torch.tensor(additional_batch_index[i])
-                if not isinstance(additional_batch_index[i], torch.FloatTensor):
-                    additional_batch_index[i] = additional_batch_index[i].type(torch.FloatTensor)
-                additional_batch_index[i] = additional_batch_index[i].to(self.device).unsqueeze(1)
-        if not isinstance(X, torch.FloatTensor):
-            X = X.type(torch.FloatTensor)
-        if P is not None and not isinstance(P, torch.FloatTensor):
-            P = P.type(torch.FloatTensor)
-            P = P.to(self.device)
-        X = X.to(self.device)
-        lib_size = X.sum(1).to(self.device)
-        return X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size
     
+
+    def _prepare_batch(self, batch_indices):
+        with self._prepare_batch_lock:
+            P = None
+            batch_data = self._dataset[batch_indices.cpu().numpy().astype(int)]
+            batch_index, label_index, additional_label_index, additional_batch_index = None, None, None, None
+            
+            if self.low_memory_initialization:
+                if self.chunked_adata_path is not None:
+                    if self.use_layer is None:
+                        if self.adata.uns['config']['sparse_storage']:
+                            X = ca._ext.load_chunked_sparse_matrix_from_tensorstore(
+                                os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.X),
+                                obs_indices = self._shuffled_indices_inverse[
+                                    batch_indices.cpu().numpy()
+                                ],
+                                var_indices = self.anndata_tensorstore_var_indices,
+                                chunk_size = self.adata.uns['config']['chunk_size']
+                            )
+                        else:
+                            X = ca._ext.load_X(
+                                os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.X),
+                                obs_indices = self._shuffled_indices_inverse[
+                                    batch_indices.cpu().numpy()
+                                ],
+                                var_indices = self.anndata_tensorstore_var_indices,
+                                to_sparse=False
+                            )
+                    else:
+                        if self.adata.uns['config']['sparse_storage']:
+                            X = ca._ext.load_chunked_sparse_matrix_from_tensorstore(
+                                os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.layers, self.use_layer),
+                                obs_indices = self._shuffled_indices_inverse[
+                                    batch_indices.cpu().numpy()
+                                ],
+                                var_indices = self.anndata_tensorstore_var_indices,
+                                chunk_size = self.adata.uns['config']['chunk_size']
+                            )
+                        else:
+                            X = ca._ext.load_X(
+                                os.path.join(self.chunked_adata_path, ca.ATS_FILE_NAME.layers, self.use_layer),
+                                obs_indices = self._shuffled_indices_inverse[
+                                    batch_indices.cpu().numpy()
+                                ],
+                                var_indices = self.anndata_tensorstore_var_indices,
+                                to_sparse=False
+                            )
+                else:
+                    if self.use_layer is None:
+                        X = self.adata.X[
+                            self._shuffled_indices_inverse[
+                                batch_indices.cpu().numpy()
+                            ]
+                        ]
+                    else:
+                        X = self.adata.layers[self.use_layer][
+                            self._shuffled_indices_inverse[
+                                batch_indices.cpu().numpy()
+                            ]
+                        ]
+
+                if self.n_batch > 0 or self.n_label > 0:
+                    if not (isinstance(batch_data, Iterable) and len(batch_data) > 1):
+                        raise ValueError("batch_data is not iterable or has only one element")
+                    if self.n_additional_batch_ is not None:
+                        if self.n_batch > 0 and self.n_label > 0 and self.n_additional_label is not None:
+                            if self.constrain_latent_embedding:
+                                P, batch_index, label_index, additional_label_index, additional_batch_index = (
+                                    get_k_elements(batch_data,0),
+                                    get_k_elements(batch_data,1),
+                                    get_k_elements(batch_data,2),
+                                    get_elements(batch_data,3, len(self.n_additional_label)),
+                                    get_last_k_elements(batch_data,3+len(self.n_additional_label))
+                                )
+                            else:
+                                batch_index, label_index, additional_label_index, additional_batch_index = (
+                                    get_k_elements(batch_data,0),
+                                    get_k_elements(batch_data,1),
+                                    get_elements(batch_data,2, len(self.n_additional_label)),
+                                    get_last_k_elements(batch_data,2+len(self.n_additional_label))
+                                )
+                            additional_label_index = list(np.vstack(additional_label_index).T.astype(int))
+                        elif self.n_batch > 0 and self.n_label > 0:
+                            if self.constrain_latent_embedding:
+                                P, batch_index, label_index, additional_batch_index = (
+                                    get_k_elements(batch_data,0),
+                                    get_k_elements(batch_data,1),
+                                    get_k_elements(batch_data,2),
+                                    get_last_k_elements(batch_data,3)
+                                )
+                            else:
+                                batch_index, label_index, additional_batch_index = (
+                                    get_k_elements(batch_data,0),
+                                    get_k_elements(batch_data,1),
+                                    get_last_k_elements(batch_data,2)
+                                )
+                        elif self.n_batch > 0:
+                            if self.constrain_latent_embedding:
+                                P, batch_index, additional_batch_index = (
+                                    get_k_elements(batch_data,0),
+                                    get_k_elements(batch_data,1),
+                                    get_last_k_elements(batch_data,2)
+                                )
+                            else:
+                                batch_index, additional_batch_index = get_k_elements(batch_data,0), get_last_k_elements(batch_data,1)
+                        elif self.n_label > 0:
+                            if self.constrain_latent_embedding:
+                                P, label_index, additional_batch_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1), get_last_k_elements(batch_data,2)
+                            else:
+                                label_index, additional_batch_index = get_k_elements(batch_data,0), get_last_k_elements(batch_data,2)
+                        additional_batch_index = list(np.vstack(additional_batch_index).T.astype(int))
+                    else:
+                        if self.n_batch > 0 and self.n_label > 0 and self.n_additional_label is not None:
+                            if self.constrain_latent_embedding:
+                                P, batch_index, label_index, additional_label_index = (
+                                    get_k_elements(batch_data,0),
+                                    get_k_elements(batch_data,1),
+                                    get_k_elements(batch_data,2),
+                                    get_last_k_elements(batch_data,3)
+                                )
+                            else:
+                                batch_index, label_index, additional_label_index = (
+                                    get_k_elements(batch_data,0),
+                                    get_k_elements(batch_data,1),
+                                    get_last_k_elements(batch_data,2)
+                                )
+                            additional_label_index = list(np.vstack(additional_label_index).T.astype(int))
+                        elif self.n_batch > 0 and self.n_label > 0:
+                            if self.constrain_latent_embedding:
+                                P, batch_index, label_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1), get_k_elements(batch_data,2)
+                            else:
+                                batch_index, label_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1)
+                        elif self.n_batch > 0:
+                            if self.constrain_latent_embedding:
+                                P, batch_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1)
+                            else:
+                                batch_index = get_k_elements(batch_data,0)
+                        elif self.n_label > 0:
+                            if self.constrain_latent_embedding:
+                                P, label_index = get_k_elements(batch_data,0), get_k_elements(batch_data,1)
+                            else:
+                                label_index = get_k_elements(batch_data,0)
+            
+                X = torch.tensor((X.toarray() if issparse(X) else X).astype(np.float32))
+            else:
+                if self.n_batch > 0 or self.n_label > 0:
+                    if not isinstance(batch_data, Iterable) and len(batch_data) > 1:
+                        raise ValueError()
+                    if self.n_additional_batch_ is not None:
+                        if (
+                            self.n_batch > 0
+                            and self.n_label > 0
+                            and self.n_additional_label is not None
+                        ):
+                            if self.constrain_latent_embedding:
+                                (
+                                    X,
+                                    P,
+                                    batch_index,
+                                    label_index,
+                                    additional_label_index,
+                                    additional_batch_index,
+                                ) = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                    get_k_elements(batch_data, 3),
+                                    get_elements(batch_data, 4, len(self.n_additional_label)),
+                                    get_last_k_elements(batch_data, 4 + len(self.n_additional_label)),
+                                )
+                            else:
+                                (
+                                    X,
+                                    batch_index,
+                                    label_index,
+                                    additional_label_index,
+                                    additional_batch_index,
+                                ) = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                    get_elements(batch_data, 3, len(self.n_additional_label)),
+                                    get_last_k_elements(batch_data, 3 + len(self.n_additional_label)),
+                                )
+                            additional_label_index = list(
+                                np.vstack(additional_label_index).T.astype(int)
+                            )
+                        elif self.n_batch > 0 and self.n_label > 0:
+                            if self.constrain_latent_embedding:
+                                X, P, batch_index, label_index, additional_batch_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                    get_k_elements(batch_data, 3),
+                                    get_last_k_elements(batch_data, 4),
+                                )
+                            else:
+                                X, batch_index, label_index, additional_batch_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                    get_last_k_elements(batch_data, 3),
+                                )
+                        elif self.n_batch > 0:
+                            if self.constrain_latent_embedding:
+                                X, P, batch_index, additional_batch_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                    get_last_k_elements(batch_data, 3),
+                                )
+                            else:
+                                X, batch_index, additional_batch_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_last_k_elements(batch_data, 2),
+                                )
+                        elif self.n_label > 0:
+                            if self.constrain_latent_embedding:
+                                X, P, label_index, additional_batch_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                    get_last_k_elements(batch_data, 3),
+                                )
+                            else:
+                                X, label_index, additional_batch_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_last_k_elements(batch_data, 2),
+                                )
+                        else:
+                            if self.constrain_latent_embedding:
+                                X, P, additional_batch_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                )
+                            else:
+                                X, additional_batch_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                )
+                        additional_batch_index = list(
+                            np.vstack(additional_batch_index).T.astype(int)
+                        )
+                    else:
+                        if (
+                            self.n_batch > 0
+                            and self.n_label > 0
+                            and self.n_additional_label is not None
+                        ):
+                            if self.constrain_latent_embedding:
+                                X, P, batch_index, label_index, additional_label_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                    get_k_elements(batch_data, 3),
+                                    get_last_k_elements(batch_data, 4),
+                                )
+                            else:
+                                X, batch_index, label_index, additional_label_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                    get_last_k_elements(batch_data, 3),
+                                )
+                            additional_label_index = list(
+                                np.vstack(additional_label_index).T.astype(int)
+                            )
+                        elif self.n_batch > 0 and self.n_label > 0:
+                            if self.constrain_latent_embedding:
+                                X, P, batch_index, label_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                    get_k_elements(batch_data, 3),
+                                )
+                            else:
+                                X, batch_index, label_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                )
+                        elif self.n_batch > 0:
+                            if self.constrain_latent_embedding:
+                                X, P, batch_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                )
+                            else:
+                                X, batch_index = get_k_elements(batch_data, 0), get_k_elements(batch_data, 1)
+                        elif self.n_label > 0:
+                            if self.constrain_latent_embedding:
+                                X, P, label_index = (
+                                    get_k_elements(batch_data, 0),
+                                    get_k_elements(batch_data, 1),
+                                    get_k_elements(batch_data, 2),
+                                )
+                            else:
+                                X, label_index = get_k_elements(batch_data, 0), get_k_elements(batch_data, 1)
+                else:
+                    if self.constrain_latent_embedding:
+                        X, P = get_k_elements(batch_data, 0), get_k_elements(batch_data, 1)
+                    else:
+                        X = get_k_elements(batch_data, 0)
+
+                X = torch.tensor(
+                    np.vstack(list(map(lambda x: x.toarray() if issparse(x) else x, X)))
+                )
+
+            if self.constrain_latent_embedding:
+                P = torch.tensor(np.vstack(P)).type(torch.FloatTensor).to(self.device)
+            if self.n_label > 0:
+                label_index = torch.tensor(label_index)
+                if not isinstance(label_index, torch.FloatTensor):
+                    label_index = label_index.type(torch.FloatTensor)
+                label_index = label_index.to(self.device).unsqueeze(1)
+            if self.n_batch > 0:
+                batch_index = torch.tensor(batch_index)
+                if not isinstance(batch_index, torch.FloatTensor):
+                    batch_index = batch_index.type(torch.FloatTensor)
+                batch_index = batch_index.to(self.device).unsqueeze(1)
+            if self.n_additional_label is not None:
+                for i in range(len(additional_label_index)):
+                    additional_label_index[i] = torch.tensor(additional_label_index[i])
+                    if not isinstance(additional_label_index[i], torch.FloatTensor):
+                        additional_label_index[i] = additional_label_index[i].type(torch.FloatTensor)
+                    additional_label_index[i] = additional_label_index[i].to(self.device).unsqueeze(1)
+            if self.n_additional_batch_ is not None:
+                for i in range(len(additional_batch_index)):
+                    additional_batch_index[i] = torch.tensor(additional_batch_index[i])
+                    if not isinstance(additional_batch_index[i], torch.FloatTensor):
+                        additional_batch_index[i] = additional_batch_index[i].type(torch.FloatTensor)
+                    additional_batch_index[i] = additional_batch_index[i].to(self.device).unsqueeze(1)
+            if not isinstance(X, torch.FloatTensor):
+                X = X.type(torch.FloatTensor)
+            if P is not None and not isinstance(P, torch.FloatTensor):
+                P = P.type(torch.FloatTensor)
+                P = P.to(self.device)
+            X = X.to(self.device)
+            lib_size = X.sum(1).to(self.device)
+            return X, P, batch_index, label_index, additional_label_index, additional_batch_index, lib_size

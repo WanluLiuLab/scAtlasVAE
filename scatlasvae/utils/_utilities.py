@@ -52,7 +52,11 @@ def get_default_device():
     """
     devices = {}
     n_cuda_device = torch.cuda.device_count()
-    if n_cuda_device > 0:
+    n_mps_device = torch.mps.device_count()
+    if n_mps_device > 0:
+        # MPS is available
+        return 'mps'
+    elif n_cuda_device > 0:
         for i in range(n_cuda_device):
             used, total, perc = print_gpu_mem(i)
             devices['cuda:' + str(i)] = {

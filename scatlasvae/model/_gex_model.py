@@ -99,7 +99,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
     def __init__(self, *,
        adata: Optional[sc.AnnData] = None,
        chunked_adata_path: Optional[str] = None,
-       anndata_tensorstore_var_names: Optional[Iterable[str]] = None,
+       chunked_adata_var_names: Optional[Iterable[str]] = None,
        use_layer: Optional[str] = None,
        hidden_stacks: List[int] = [128],
        n_latent: int = 10,
@@ -126,7 +126,7 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
        constrain_n_batch: bool = True,
        constrain_latent_method: Literal['mse', 'normal'] = 'mse',
        constrain_latent_embedding: bool = False,
-       constrain_latent_key: str = 'X_gex',
+       constrain_latent_key: Optional[str] = None,
        encode_libsize: bool = False,
        decode_libsize: bool = True,
        dropout_rate: float = 0.1,
@@ -186,11 +186,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
 
         
         self.chunked_adata_path = chunked_adata_path
-        self.anndata_tensorstore_var_names = anndata_tensorstore_var_names
+        self.chunked_adata_var_names = chunked_adata_var_names
         self.anndata_tensorstore_var_indices = None
-        if anndata_tensorstore_var_names is not None:
-            self.anndata_tensorstore_var_indices = np.argwhere(np.isin(var.index, anndata_tensorstore_var_names)).flatten()
-            var = var.loc[anndata_tensorstore_var_names]
+        if chunked_adata_var_names is not None:
+            self.anndata_tensorstore_var_indices = np.argwhere(np.isin(var.index, chunked_adata_var_names)).flatten()
+            var = var.loc[chunked_adata_var_names]
         self.use_layer = use_layer
         self.in_dim = adata.shape[1] if adata else var.shape[0]
         self.n_hidden = hidden_stacks[-1]
@@ -1368,10 +1368,11 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                     optimizer = optim.AdamW(chain(self.att.parameters(), self.fc.parameters()), lr, weight_decay=weight_decay)
 
             X_train = list(X_train) # convert to list
-
             future_dict = {}
-
-            with ThreadPoolExecutor(max_workers=1) as executor:
+            total_steps = len(X_train)
+            step_time = 0
+            with ThreadPoolExecutor(max_workers=n_concurrent_batch) as executor:
+                step_start_time = time.time()
                 for b, batch_indices in enumerate(X_train):
                     future = future_dict.get(b, None)
                     if future is None:
@@ -1434,12 +1435,16 @@ class scAtlasVAE(ReparameterizeLayerBase, MMDLayerBase):
                         mw("nan loss detected. skipping backward and optimizer step for this batch")
                         continue
                     optimizer.step()
+                    avg_step_time = (time.time() - step_start_time) / (b + 1)
+                    epoch_left_time = (total_steps - b) * avg_step_time
+                    epoch_left_time = time.strftime("%H:%M:%S", time.gmtime(epoch_left_time))
                     pbar.set_postfix({
                         'rec': '{:.2e}'.format(loss_record["epoch_reconstruction_loss"]),
                         'kl': '{:.2e}'.format(loss_record["epoch_kldiv_loss"]),
                         'pred': '{:.2e}'.format(loss_record["epoch_prediction_loss"]),
                         'mmd': '{:.2e}'.format(loss_record["epoch_mmd_loss"]),
-                        'step': f'{b} / {len(X_train)}'
+                        'step': f'{b} / {len(X_train)}',
+                        'step_time': '{:.2f}s/{}'.format(avg_step_time, epoch_left_time),
                     })
             loss_record = self.calculate_metric(X_test, kl_weight, pred_weight, mmd_weight, reconstruction_reduction)
             if lr_schedule:
